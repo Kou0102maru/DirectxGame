@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   画面遷移制御 [scene.cpp]
+   ???J????? [scene.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/07/11
 --------------------------------------------------------------------------------
@@ -9,7 +9,7 @@
 #include "scene.h"
 #include "title.h"
 #include "game.h"
-#include "battle.h"  // ★追加★
+#include "battle.h"  // ???????
 
 
 // static Scene g_Scene = SCENE_TITLE;
@@ -28,11 +28,11 @@ void Scene_Initialize()
 	case SCENE_GAME:
 		Game_Initialize();
 		break;
-	case SCENE_BATTLE:  // ★追加★
+	case SCENE_BATTLE:  // ???????
 		Battle_Initialize();
 		break;
 	case SCENE_RESULT:
-		// リザルトシーンは未実装
+		// ???U???g?V?[?????????
 		break;
 	default:
 		break;
@@ -49,11 +49,11 @@ void Scene_Finalize()
 	case SCENE_GAME:
 		Game_Finalize();
 		break;
-	case SCENE_BATTLE:  // ★追加★
+	case SCENE_BATTLE:  // ???????
 		Battle_Finalize();
 		break;
 	case SCENE_RESULT:
-		// リザルトシーンは未実装
+		// ???U???g?V?[?????????
 		break;
 	default:
 		break;
@@ -70,11 +70,11 @@ void Scene_Update(double elapsed_time)
 	case SCENE_GAME:
 		Game_Update(elapsed_time);
 		break;
-	case SCENE_BATTLE:  // ★追加★
+	case SCENE_BATTLE:  // ???????
 		Battle_Update(elapsed_time);
 		break;
 	case SCENE_RESULT:
-		// リザルトシーンは未実装
+		// ???U???g?V?[?????????
 		break;
 	default:
 		break;
@@ -91,11 +91,11 @@ void Scene_Draw()
 	case SCENE_GAME:
 		Game_Draw();
 		break;
-	case SCENE_BATTLE:  // ★追加★
+	case SCENE_BATTLE:  // ???????
 		Battle_Draw();
 		break;
 	case SCENE_RESULT:
-		// リザルトシーンは未実装
+		// ???U???g?V?[?????????
 		break;
 	default:
 		break;
@@ -105,9 +105,19 @@ void Scene_Draw()
 void Scene_Refresh()
 {
 	if (g_Scene != g_SceneNext) {
-		Scene_Finalize();
-		g_Scene = g_SceneNext;
-		Scene_Initialize();
+		if (g_Scene == SCENE_GAME && g_SceneNext == SCENE_BATTLE) {
+			g_Scene = g_SceneNext;
+			Battle_Initialize();
+		}
+		else if (g_Scene == SCENE_BATTLE && g_SceneNext == SCENE_GAME) {
+			Battle_Finalize();
+			g_Scene = g_SceneNext;
+		}
+		else {
+			Scene_Finalize();
+			g_Scene = g_SceneNext;
+			Scene_Initialize();
+		}
 	}
 }
 

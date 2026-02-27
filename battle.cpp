@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   æˆ¦é—˜ã‚·ãƒ¼ãƒ³ [battle.cpp]
+   í“¬ƒV[ƒ“ [battle.cpp]
 														 Author :
 														 Date   : 2025/xx/xx
 --------------------------------------------------------------------------------
@@ -26,21 +26,21 @@
 #include "billboard.h"
 using namespace DirectX;
 
-// æˆ¦é—˜ç›¸æ‰‹ã®ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼
+// í“¬‘Šè‚Ìƒ‚ƒ“ƒXƒ^[
 static Monster* g_pBattleEnemy = nullptr;
 static Monster* g_pOriginalEnemy = nullptr;
 
-// â˜…ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼æƒ…å ±ã®ã‚³ãƒ”ãƒ¼â˜…
+// šƒ‚ƒ“ƒXƒ^[î•ñ‚ÌƒRƒs[š
 static int g_EnemyHp = 0;
 static int g_EnemyHpMax = 0;
 static MonsterKind g_EnemyKind = MONSTER_KIND_SLIME;
 
-// ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼ã®æˆ¦é—˜ç”¨ä½ç½®ï¼ˆå›ºå®šï¼‰
+// ƒ‚ƒ“ƒXƒ^[‚Ìí“¬—pˆÊ’uiŒÅ’èj
 static constexpr float ENEMY_BATTLE_X = 5.0f;
 static constexpr float ENEMY_BATTLE_Y = 0.5f;
 static constexpr float ENEMY_BATTLE_Z = 0.0f;
 
-// ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®æˆ¦é—˜ç”¨ä½ç½®ï¼ˆå›ºå®šï¼‰
+// ƒvƒŒƒCƒ„[‚Ìí“¬—pˆÊ’uiŒÅ’èj
 static constexpr float PLAYER_BATTLE_X = -5.0f;
 static constexpr float PLAYER_BATTLE_Y = 0.5f;
 static constexpr float PLAYER_BATTLE_Z = 0.0f;
@@ -73,7 +73,7 @@ void Battle_SetEnemy(Monster* enemy)
 
 void Battle_Initialize()
 {
-	// â˜…ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼æƒ…å ±ãŒã‚³ãƒ”ãƒ¼ã•ã‚Œã¦ãªã‹ã£ãŸã‚‰ã‚²ãƒ¼ãƒ ã‚·ãƒ¼ãƒ³ã«æˆ»ã‚‹â˜…
+	// šƒ‚ƒ“ƒXƒ^[î•ñ‚ªƒRƒs[‚³‚ê‚Ä‚È‚©‚Á‚½‚çƒQ[ƒ€ƒV[ƒ“‚É–ß‚éš
 	if (g_EnemyHp <= 0 && g_EnemyHpMax <= 0) {
 		Scene_Change(SCENE_GAME);
 		return;
@@ -81,62 +81,63 @@ void Battle_Initialize()
 
 	g_PlayerSavePosition = Player_GetPosition();
 
-	// æˆ¦é—˜ç”¨ã‚«ãƒ¡ãƒ©ã‚’åˆæœŸåŒ–ï¼ˆçœŸæ¨ªã‹ã‚‰è¦‹ã‚‹ï¼‰
+	// í“¬—pƒJƒƒ‰‚ğ‰Šú‰»i^‰¡‚©‚çŒ©‚éj
 	Camera_Initialize(
-		{ 0.0f, 2.0f, -10.0f },  // ã‚«ãƒ¡ãƒ©ä½ç½®ï¼ˆä¸­å¤®ã€å°‘ã—ä¸Šã€æ‰‹å‰ï¼‰
-		{ 0.0f, 0.0f, 1.0f },    // å‰å‘ãï¼ˆå¥¥ã‚’å‘ãï¼‰
-		{ 1.0f, 0.0f, 0.0f }     // å³å‘ã
+		{ 0.0f, 2.0f, -10.0f },  // ƒJƒƒ‰ˆÊ’ui’†‰›A­‚µãAè‘Oj
+		{ 0.0f, 0.0f, 1.0f },    // ‘OŒü‚«i‰œ‚ğŒü‚­j
+		{ 1.0f, 0.0f, 0.0f }     // ‰EŒü‚«
 	);
 
-	// æˆ¦é—˜ç”¨ã«ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã¨æ•µã®ä½ç½®ã‚’å›ºå®š
+	// í“¬—p‚ÉƒvƒŒƒCƒ„[‚Æ“G‚ÌˆÊ’u‚ğŒÅ’è
 	Player_SetPosition({ PLAYER_BATTLE_X, PLAYER_BATTLE_Y, PLAYER_BATTLE_Z });
 	//g_pBattleEnemy->SetPosition({ ENEMY_BATTLE_X, ENEMY_BATTLE_Y, ENEMY_BATTLE_Z });
 
-	// â˜…å¼¾ã‚’å…¨å‰Šé™¤ï¼ˆFinalize/Initializeã¯ä½¿ã‚ãªã„ï¼‰â˜…
+	// š’e‚ğ‘SíœiFinalize/Initialize‚Íg‚í‚È‚¢jš
 	for (int i = Bullet_GetBulletsCount() - 1; i >= 0; i--) {
 		Bullet_Destroy(i);
 	}
 
-	g_WhiteTexture = Texture_Load(L"resource/texture/white.png");
+	if (g_WhiteTexture < 0) {
+		g_WhiteTexture = Texture_Load(L"resource/texture/white.png");
+	}
 
-	Billboard_Initialize();
+	for (int i = 0; i < 10; i++) {
+		g_BattleBullets[i].active = false;
+	}
+	g_ShootCooldown = 0.0;
 
 	g_HitEffect = new NormalEmitter(500, { 2.0f, 0.5f, 5.0f }, 50.0, false);
 }
 
 void Battle_Finalize()
 {
-	Camera_Finalize();
-
 	delete g_HitEffect;
 	g_HitEffect = nullptr;
 
-	Billboard_Finalize();
-
 	Player_SetPosition(g_PlayerSavePosition);
 
-	// â˜…æˆ¦é—˜ã—ãŸãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼ã‚’å‰Šé™¤â˜…
 	if (g_pOriginalEnemy) {
-		Monster_Remove(g_pOriginalEnemy);  // â†ã“ã®é–¢æ•°ãŒå¿…è¦
+		Monster_Remove(g_pOriginalEnemy);
 		g_pOriginalEnemy = nullptr;
 	}
 
 	g_pBattleEnemy = nullptr;
+
+	for (int i = 0; i < 10; i++) {
+		g_BattleBullets[i].active = false;
+	}
+
+	g_EnemyHp = 0;
+	g_EnemyHpMax = 0;
 }
 
 void Battle_Update(double elapsed_time)
 {
-	// ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼æ›´æ–°ï¼ˆç§»å‹•ã¯åˆ¶é™ï¼‰
-	Player_Update(elapsed_time);
-
-	// ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ä½ç½®ã‚’å›ºå®šï¼ˆå‹•ã‘ãªã„ã‚ˆã†ã«ï¼‰
-	Player_SetPosition({ PLAYER_BATTLE_X, PLAYER_BATTLE_Y, PLAYER_BATTLE_Z });
-
 	g_ShootCooldown -= elapsed_time;
 	if (g_ShootCooldown < 0.0) g_ShootCooldown = 0.0;
 
 	if (KeyLogger_IsTrigger(KK_SPACE) && g_ShootCooldown <= 0.0) {
-		// ç©ºã„ã¦ã‚‹ã‚¹ãƒ­ãƒƒãƒˆã‚’æ¢ã—
+		// ‹ó‚¢‚Ä‚éƒXƒƒbƒg‚ğ’T‚µ
 		int slot = -1;
 		for (int i = 0; i < 10; i++) {
 			if (!g_BattleBullets[i].active) {
@@ -145,61 +146,57 @@ void Battle_Update(double elapsed_time)
 			}
 		}
 
-		// å¼¾ã‚’è¿½åŠ 
+		// ’e‚ğ’Ç‰Á
 		if(slot >= 0) {
-			g_BattleBullets[slot].x = -2.0f;  // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ä½ç½®
+			g_BattleBullets[slot].x = -2.0f;  // ƒvƒŒƒCƒ„[ˆÊ’u
 			g_BattleBullets[slot].active = true;
 			g_BattleBullets[slot].lifetime = 0.0;
 		}
 		g_ShootCooldown = SHOOT_INTERVAL;
 	}
 
-	// å¼¾ã‚’ç§»å‹•
+	// ’e‚ğˆÚ“®
 	for (int i = 0; i < 10; i++) {
 		if (g_BattleBullets[i].active) {
 			g_BattleBullets[i].x += 10.0f * (float)elapsed_time;
 			g_BattleBullets[i].lifetime += elapsed_time;
 
-			// â˜…3ç§’çµŒéã—ãŸã‚‰è‡ªå‹•å‰Šé™¤â˜…
+			// š3•bŒo‰ß‚µ‚½‚ç©“®íœš
 			if (g_BattleBullets[i].lifetime > 3.0) {
 				g_BattleBullets[i].active = false;
 				continue;
 			}
 
-			// å½“ãŸã‚Šåˆ¤å®š
+			// “–‚½‚è”»’è
 			if (g_EnemyHp > 0 && g_BattleBullets[i].x >= 1.5f && g_BattleBullets[i].x <= 2.5f) {
 				g_EnemyHp -= 10;
 				if (g_EnemyHp < 0) g_EnemyHp = 0;
 				g_BattleBullets[i].active = false;
 
-				// â˜…ãƒ’ãƒƒãƒˆãƒ‘ãƒ¼ãƒ†ã‚£ã‚¯ãƒ«ç™ºç”Ÿï¼ˆä½ç½®ã‚’è¨­å®šã™ã‚‹ã ã‘ï¼‰â˜…
-				if (g_HitEffect) {// â˜…3ç§’çµŒéã—ãŸã‚‰è‡ªå‹•å‰Šé™¤â˜…
-			if (g_BattleBullets[i].lifetime > 3.0) {
-				g_BattleBullets[i].active = false;
-				continue;
-			}
-					g_HitEffect->SetPosition({ 2.0f, 0.5f, 5.0f });  // ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼ã®ä½ç½®
+				// šƒqƒbƒgƒp[ƒeƒBƒNƒ‹”­¶iˆÊ’u‚ğİ’è‚·‚é‚¾‚¯jš
+				if (g_HitEffect) {
+					g_HitEffect->SetPosition({ 2.0f, 0.5f, 5.0f });
 				}
 			}
 
-			// ç”»é¢å¤–
+			// ‰æ–ÊŠO
 			if (g_BattleBullets[i].x > 5.0f) {
 				g_BattleBullets[i].active = false;
 			}
 		}
 	}
 
-	// â˜…ãƒ‘ãƒ¼ãƒ†ã‚£ã‚¯ãƒ«æ›´æ–°â˜…
+	// šƒp[ƒeƒBƒNƒ‹XVš
 	if (g_HitEffect) {
 		g_HitEffect->Update(elapsed_time);
 	}
 
-	// ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼ã‚’å€’ã—ãŸã‚‰ã‚²ãƒ¼ãƒ ã‚·ãƒ¼ãƒ³ã«æˆ»ã‚‹
+	// ƒ‚ƒ“ƒXƒ^[‚ğ“|‚µ‚½‚çƒQ[ƒ€ƒV[ƒ“‚É–ß‚é
 	if (g_EnemyHp <= 0) {
 		Scene_Change(SCENE_GAME);
 	}
 
-	// ãƒ‡ãƒãƒƒã‚°ï¼šMã‚­ãƒ¼ã§å¼·åˆ¶çµ‚äº†
+	// ƒfƒoƒbƒOFMƒL[‚Å‹­§I—¹
 	if (KeyLogger_IsTrigger(KK_M)) {
 		Scene_Change(SCENE_GAME);
 	}
@@ -212,7 +209,7 @@ void Battle_Draw()
 
 	Direct3D_SetDepthEnable(true);
 
-	// ã‚«ãƒ¡ãƒ©è¨­å®šï¼ˆPlayerCameraã‚’ä½¿ã†ï¼‰
+	// ƒJƒƒ‰İ’èiPlayerCamera‚ğg‚¤j
 	XMFLOAT4X4 mtxView = Camera_GetMatrix();
 	Billboard_SetViewMatrix(mtxView);
 	XMFLOAT4X4 mtxProj = PlayerCamera_GetPerspectiveMatrix();
@@ -222,7 +219,7 @@ void Battle_Draw()
 
 	Sampler_SetFilterAnisotropic();
 
-	// ãƒ©ã‚¤ãƒˆè¨­å®š
+	// ƒ‰ƒCƒgİ’è
 	Light_SetAmbient({ 1.0f, 1.0f, 1.0f });
 	XMVECTOR v{ 0.0f, -1.0f, 0.0f };
 	v = XMVector3Normalize(v);
@@ -234,15 +231,15 @@ void Battle_Draw()
 	extern int g_MonsterTexWolf;
 	extern int g_MonsterTexDragon;
 
-	//ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼
+	//ƒvƒŒƒCƒ„[
 	XMMATRIX worldPlayer = XMMatrixTranslation(-2.0f, 0.5f, 5.0f);  
 	Cube_Draw(g_MonsterTexSlime, worldPlayer);
 
-	//ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼
+	//ƒ‚ƒ“ƒXƒ^[
 	XMMATRIX worldEnemy = XMMatrixTranslation(2.0f, 0.5f, 5.0f);  
 	Cube_Draw(g_MonsterTexWolf, worldEnemy);
 
-	// â˜…ã“ã“ã‹ã‚‰2Dæç”»ï¼ˆHPãƒãƒ¼ï¼‰â˜…
+	// š‚±‚±‚©‚ç2D•`‰æiHPƒo[jš
 	Direct3D_SetDepthEnable(false);
 	//Direct3D_SetAlphaBlendTransparent();
 	Sprite_Begin();
@@ -252,31 +249,31 @@ void Battle_Draw()
 	float bar_height = 15.0f;
 
 
-	// â˜…ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®HPãƒãƒ¼
+	// šƒvƒŒƒCƒ„[‚ÌHPƒo[
 	float player_hp_ratio = 1.0f;
 	float player_bar_x = Direct3D_GetBackBufferWidth() * 0.25f - bar_width / 2;
 	float player_bar_y = Direct3D_GetBackBufferHeight() * 0.75f;
 
-	// HPæ 
+	// HP˜g
 	Sprite_Draw(g_WhiteTexture, player_bar_x - 2, player_bar_y - 2, bar_width + 4, bar_height + 4, { 1.0f, 1.0f, 1.0f, 1.0f });
-	// HPèƒŒæ™¯
+	// HP”wŒi
 	Sprite_Draw(g_WhiteTexture, player_bar_x, player_bar_y, bar_width, bar_height, { 0.0f, 0.0f, 0.0f, 1.0f });
 	// HP
 	Sprite_Draw(g_WhiteTexture, player_bar_x, player_bar_y, bar_width * player_hp_ratio, bar_height, { 0.0f, 1.0f, 0.0f, 1.0f });
 
-	// ãƒ¢ãƒ³ã‚¹ã‚¿ãƒ¼ã®HPãƒãƒ¼
+	// ƒ‚ƒ“ƒXƒ^[‚ÌHPƒo[
 	float enemy_hp_ratio = (float)g_EnemyHp / (float)g_EnemyHpMax;
 	float enemy_bar_x = Direct3D_GetBackBufferWidth() * 0.75f - bar_width / 2;
 	float enemy_bar_y = Direct3D_GetBackBufferHeight() * 0.75f;
 	
-	// HPæ 
+	// HP˜g
 	Sprite_Draw(g_WhiteTexture, enemy_bar_x - 2, enemy_bar_y - 2, bar_width + 4, bar_height + 4, { 1.0f, 1.0f, 1.0f, 1.0f });
-	// HPèƒŒæ™¯
+	// HP”wŒi
 	Sprite_Draw(g_WhiteTexture, enemy_bar_x, enemy_bar_y, bar_width, bar_height, { 0.1f, 0.1f, 0.1f, 1.0f });
 	// HP
-	XMFLOAT4 hp_color = { 0.0f, 1.0f, 0.0f, 1.0f };  // ç·‘
-	if (enemy_hp_ratio <= 0.5f) hp_color = { 1.0f, 1.0f, 0.0f, 1.0f };  // é»„è‰²
-	if (enemy_hp_ratio <= 0.25f) hp_color = { 1.0f, 0.0f, 0.0f, 1.0f };  // èµ¤
+	XMFLOAT4 hp_color = { 0.0f, 1.0f, 0.0f, 1.0f };  // —Î
+	if (enemy_hp_ratio <= 0.5f) hp_color = { 1.0f, 1.0f, 0.0f, 1.0f };  // ‰©F
+	if (enemy_hp_ratio <= 0.25f) hp_color = { 1.0f, 0.0f, 0.0f, 1.0f };  // Ô
 
 	if (g_EnemyHp > 0) {
 		Sprite_Draw(g_WhiteTexture, enemy_bar_x, enemy_bar_y, bar_width * enemy_hp_ratio, bar_height, hp_color);
@@ -293,12 +290,12 @@ void Battle_Draw()
 		}
 	}
 
-		// â˜…ãƒ‘ãƒ¼ãƒ†ã‚£ã‚¯ãƒ«æç”»ã‚’è¿½åŠ â˜…
+		// šƒp[ƒeƒBƒNƒ‹•`‰æ‚ğ’Ç‰Áš
 		if (g_HitEffect) {
 			Direct3D_SetDepthWriteDisable();
 			Direct3D_SetAlphaBlendAdd();
 			g_HitEffect->Draw();
 			Direct3D_SetDepthEnable(true);
-			Direct3D_SetAlphaBlendTransparent();  // å…ƒã«æˆ»ã™
+			Direct3D_SetAlphaBlendTransparent();  // Œ³‚É–ß‚·
 		}
 }

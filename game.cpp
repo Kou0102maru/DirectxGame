@@ -52,7 +52,6 @@ static NormalEmitter* g_Emitter;
 
 void Game_Initialize()
 {
-	int a = 0;
 	// ší“¬‚©‚ç–ß‚é‚ÍA•Û‘¶‚µ‚½ˆÊ’u‚Å‰Šú‰»š
 	extern XMFLOAT3 g_PlayerSavePosition;  // battle.cpp ‚Å•Û‘¶‚µ‚½ˆÊ’u
 	extern bool g_ReturnFromBattle;
