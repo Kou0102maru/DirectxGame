@@ -100,7 +100,7 @@ void MonsterDragon::StateCircle::Draw() const
     XMMATRIX world = rotY * trans;
 
     if (g_pDragonFieldModel) {
-        ModelDraw(g_pDragonFieldModel, world);
+        ModelDraw(g_pDragonFieldModel, world, { 0.0f, 0.0f, 1.0f, 1.0f });
     } else {
         Cube_Draw(g_MonsterTexDragon, trans);
     }
@@ -143,7 +143,7 @@ void MonsterDragon::StateDive::Update(double elapsed_time)
 void MonsterDragon::StateDive::Draw() const
 {
     // ‹}~‰º’†‚Í–¾‚é‚­
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 5.0f, { 1.0f, 0.3f, 0.3f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
 
     // is•ûŒü‚ðŒü‚­‚æ‚¤ Y Ž²‰ñ“]‚ðŒvŽZibBlender‚ÅÀ•WŒn•ÏŠ·Ï‚Ýj
     float angle = -atan2f(m_pOwner->m_front.z, m_pOwner->m_front.x) + XMConvertToRadians(270);
@@ -155,7 +155,7 @@ void MonsterDragon::StateDive::Draw() const
     XMMATRIX world = rotY * trans;
 
     if (g_pDragonFieldModel) {
-        ModelDraw(g_pDragonFieldModel, world);
+        ModelDraw(g_pDragonFieldModel, world, { 1.0f, 1.0f, 0.0f, 1.0f });
     } else {
         Cube_Draw(g_MonsterTexDragon, trans);
     }

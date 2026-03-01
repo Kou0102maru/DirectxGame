@@ -39,7 +39,7 @@ static Monster* g_pOriginalEnemy = nullptr;
 static int g_EnemyHp = 0;
 static int g_EnemyHpMax = 0;
 static int g_EnemyLevel = 1;
-static MonsterKind g_EnemyKind = MONSTER_KIND_SLIME;
+static MonsterKind g_EnemyKind = MONSTER_KIND_SPIDER;
 
 // モンスター配置（右）
 static constexpr float ENEMY_BATTLE_X = 5.0f;
@@ -97,11 +97,13 @@ static int g_WhiteTexture = -1;
 XMFLOAT3 g_PlayerSavePosition;
 
 // バトル用3Dモデル（一度ロードしたら保持）
+static MODEL* g_pBattleSpiderModel = nullptr;
 static MODEL* g_pBattleWolfModel   = nullptr;
 static MODEL* g_pBattleDragonModel = nullptr;
 // スケール定数（モデルサイズに合わせて調整可）
+static constexpr float SPIDER_MODEL_SCALE = 0.15f;
 static constexpr float WOLF_MODEL_SCALE   = 3.0f;
-static constexpr float DRAGON_MODEL_SCALE = 0.1f;
+static constexpr float DRAGON_MODEL_SCALE = 0.2f;
 
 // テキスト描画オブジェクト（HPバー上下表示用）
 static hal::DebugText* g_pPlayerHeaderText = nullptr;  // Lv + 名前
@@ -120,7 +122,7 @@ static hal::DebugText* g_pResultText   = nullptr;  // 勝敗リザルト表示用
 static int GetCaptureRate(MonsterKind kind)
 {
 	switch (kind) {
-	case MONSTER_KIND_SLIME:  return 30;
+	case MONSTER_KIND_SPIDER:  return 30;
 	case MONSTER_KIND_WOLF:   return 20;
 	case MONSTER_KIND_DRAGON: return 0;   // ラスボスは仲間にならない
 	default:                  return 0;
@@ -131,7 +133,7 @@ static int GetCaptureRate(MonsterKind kind)
 static const char* GetEnemyDisplayName(MonsterKind kind)
 {
 	switch (kind) {
-	case MONSTER_KIND_SLIME:  return "Slime";
+	case MONSTER_KIND_SPIDER:  return "Spider";
 	case MONSTER_KIND_WOLF:   return "Wolf";
 	case MONSTER_KIND_DRAGON: return "Dragon";
 	default:                  return "???";
@@ -157,7 +159,7 @@ void Battle_SetEnemy(Monster* enemy)
 
 	// 敵攻撃パターン設定
 	switch (g_EnemyKind) {
-	case MONSTER_KIND_SLIME:
+	case MONSTER_KIND_SPIDER:
 		g_EnemyAttackInterval = 1.2;
 		g_EnemyBulletSpeed = 6.0f;
 		g_EnemyBurstCount = 1;
@@ -211,8 +213,10 @@ void Battle_Initialize()
 	}
 
 	// 3Dモデルのロード（スケール変更時は再ロードのため解放→再読込）
+	if (g_pBattleSpiderModel) { ModelRelease(g_pBattleSpiderModel); g_pBattleSpiderModel = nullptr; }
 	if (g_pBattleWolfModel) { ModelRelease(g_pBattleWolfModel); g_pBattleWolfModel = nullptr; }
 	if (g_pBattleDragonModel) { ModelRelease(g_pBattleDragonModel); g_pBattleDragonModel = nullptr; }
+	g_pBattleSpiderModel = ModelLoad("resource/model/sp.fbx", SPIDER_MODEL_SCALE, false);
 	g_pBattleWolfModel   = ModelLoad("resource/model/Wolf.fbx", WOLF_MODEL_SCALE, true);
 	g_pBattleDragonModel = ModelLoad("resource/model/Dragon.fbx", DRAGON_MODEL_SCALE, true);
 
@@ -437,6 +441,9 @@ void Battle_Update(double elapsed_time)
 
 	// プレイヤー死亡 -> 敗北フェーズへ
 	if (Player_GetHp() <= 0) {
+		// 残弾を全消去（リザルト表示を隠さないように）
+		for (int i = 0; i < 10; i++) g_BattleBullets[i].active = false;
+		for (int i = 0; i < 5;  i++) g_EnemyBullets[i].active = false;
 		g_BattlePhase = PHASE_LOSE;
 		g_ResultTimer = 2.5;
 		return;
@@ -457,6 +464,9 @@ void Battle_Update(double elapsed_time)
 			}
 		}
 
+		// 残弾を全消去（リザルト表示を隠さないように）
+		for (int i = 0; i < 10; i++) g_BattleBullets[i].active = false;
+		for (int i = 0; i < 5;  i++) g_EnemyBullets[i].active = false;
 		g_BattlePhase = PHASE_WIN;
 		g_ResultTimer = 3.0;
 		return;
@@ -488,20 +498,20 @@ void Battle_Draw()
 	XMStoreFloat4(&dir, v);
 	Light_SetDirectionalWorld(dir, { 1.0f, 1.0f, 1.0f, 1.0f });
 
-	extern int g_MonsterTexSlime;
+	extern int g_MonsterTexSpider;
 	extern int g_MonsterTexWolf;
 	extern int g_MonsterTexDragon;
 
 	// プレイヤー
 	XMMATRIX worldPlayer = XMMatrixTranslation(-2.0f, 0.0f, 5.0f);
-	Cube_Draw(g_MonsterTexSlime, worldPlayer);
+	Cube_Draw(g_MonsterTexSpider, worldPlayer);
 
 	// 敵モンスター（種別ごとに3Dモデルで描画）
 	switch (g_EnemyKind) {
 	case MONSTER_KIND_WOLF:
 	{
 		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.6f, 0.5f, 0.3f, 1.0f });
-		// オオカミ: モデル原点が体の中心にあるためY位置を下げて接地
+		// オオカミ
 		XMMATRIX rotWolf = XMMatrixRotationY(XM_PIDIV2);
 		XMMATRIX transWolf = XMMatrixTranslation(2.0f, -1.0f, 5.0f);
 		XMMATRIX worldWolf = rotWolf * transWolf;
@@ -515,22 +525,35 @@ void Battle_Draw()
 	case MONSTER_KIND_DRAGON:
 	{
 		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
-		// ドラゴン: スケール調整済み、プレイヤーキューブと同じ高さに配置
+		// ドラゴン
 		XMMATRIX rotDragon = XMMatrixRotationY(XM_PIDIV2);
-		XMMATRIX transDragon = XMMatrixTranslation(3.5f, -1.5f, 5.0f);
+		XMMATRIX transDragon = XMMatrixTranslation(5.5f, -4.5f, 5.0f);
 		XMMATRIX worldDragon = rotDragon * transDragon;
 		if (g_pBattleDragonModel) {
-			ModelDraw(g_pBattleDragonModel, worldDragon);
+			ModelDraw(g_pBattleDragonModel, worldDragon, { 0.0f, 0.0f, 1.0f, 1.0f });
 		} else {
 			Cube_Draw(g_MonsterTexDragon, transDragon);
 		}
 		break;
 	}
+	case MONSTER_KIND_SPIDER:
+	{
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.2f, 0.2f, 0.2f, 1.0f });
+		// クモ
+		XMMATRIX rotSpider = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(-XM_PIDIV2);
+		XMMATRIX transSpider = XMMatrixTranslation(3.0f, -0.5f, 5.0f);
+		XMMATRIX worldSpider = rotSpider * transSpider;
+		if (g_pBattleSpiderModel) {
+			ModelDraw(g_pBattleSpiderModel, worldSpider, { 0.1f, 0.1f, 0.1f, 1.0f });
+		} else {
+			Cube_Draw(g_MonsterTexSpider, transSpider);
+		}
+		break;
+	}
 	default:
 	{
-		// スライムはキューブのまま
 		XMMATRIX transEnemy = XMMatrixTranslation(2.0f, 0.0f, 5.0f);
-		Cube_Draw(g_MonsterTexSlime, transEnemy);
+		Cube_Draw(g_MonsterTexSpider, transEnemy);
 		break;
 	}
 	}

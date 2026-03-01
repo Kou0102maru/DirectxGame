@@ -172,7 +172,7 @@
     <ClCompile Include="model.cpp" />
     <ClCompile Include="monster.cpp" />
     <ClCompile Include="monster_dragon.cpp" />
-    <ClCompile Include="monster_slime.cpp" />
+    <ClCompile Include="monster_spider.cpp" />
     <ClCompile Include="monster_wolf.cpp" />
     <ClCompile Include="mouse.cpp" />
     <ClCompile Include="pad_logger.cpp" />
@@ -231,7 +231,7 @@
     <ClInclude Include="model.h" />
     <ClInclude Include="monster.h" />
     <ClInclude Include="monster_dragon.h" />
-    <ClInclude Include="monster_slime.h" />
+    <ClInclude Include="monster_spider.h" />
     <ClInclude Include="monster_wolf.h" />
     <ClInclude Include="mouse.h" />
     <ClInclude Include="pad_logger.h" />

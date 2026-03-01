@@ -52,7 +52,11 @@ MODEL* ModelLoad( const char *FileName, float scale, bool bBlender)
 				}
 
 				vertex[v].color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-				vertex[v].texcoord = XMFLOAT2( mesh->mTextureCoords[0][v].x, mesh->mTextureCoords[0][v].y);
+				if (mesh->mTextureCoords[0]) {
+					vertex[v].texcoord = XMFLOAT2(mesh->mTextureCoords[0][v].x, mesh->mTextureCoords[0][v].y);
+				} else {
+					vertex[v].texcoord = XMFLOAT2(0.0f, 0.0f);
+				}
 
 				// Get AABB
 				if (v == 0 && m == 0) {
@@ -242,7 +246,7 @@ void ModelRelease(MODEL* model)
 	model = nullptr;
 }
 
-void ModelDraw(MODEL* model, const DirectX::XMMATRIX& mtxWorld)
+void ModelDraw(MODEL* model, const DirectX::XMMATRIX& mtxWorld, const DirectX::XMFLOAT4& tint)
 {
 	// Set shader draw pipeline
 	Shader3d_Begin();
@@ -262,14 +266,14 @@ void ModelDraw(MODEL* model, const DirectX::XMMATRIX& mtxWorld)
 
 		if (texture.length != 0 && model->Texture.count(texture.data) > 0) {
 			Direct3D_GetContext()->PSSetShaderResources(0, 1, &model->Texture[texture.data]);
-			Shader3d_SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+			Shader3d_SetColor({ tint.x, tint.y, tint.z, tint.w });
 		}
 		else {
 			// No texture or missing file -> white texture + material color
 			Texture_SetTexture(g_TextureWhite);
 			aiColor3D diffuse;
 			aimaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
-			Shader3d_SetColor({ diffuse.r, diffuse.g, diffuse.b, 1.0f });
+			Shader3d_SetColor({ diffuse.r * tint.x, diffuse.g * tint.y, diffuse.b * tint.z, tint.w });
 		}
 
 		// Set vertex buffer to draw pipeline

@@ -28,7 +28,7 @@ struct MODEL
 MODEL* ModelLoad(const char* FileName, float scale = 1.0f, bool bBlender = false);
 void ModelRelease(MODEL* model);
 
-void ModelDraw(MODEL* model, const DirectX::XMMATRIX& mtxWorld);
+void ModelDraw(MODEL* model, const DirectX::XMMATRIX& mtxWorld, const DirectX::XMFLOAT4& tint = { 1.0f, 1.0f, 1.0f, 1.0f });
 void ModelDepthDraw(MODEL* model, const DirectX::XMMATRIX& mtxWorld);
 void ModelUnlitDraw(MODEL* model, const DirectX::XMMATRIX& mtxWorld);
 

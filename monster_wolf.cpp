@@ -156,7 +156,7 @@ void MonsterWolf::StateChase::Update(double elapsed_time)
 void MonsterWolf::StateChase::Draw() const
 {
     // ’ÇÕ’†‚ÍÔ‚Ý‚ª‚©‚Á‚½Œõ
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 3.0f, { 0.8f, 0.4f, 0.2f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.6f, 0.5f, 0.3f, 1.0f });
 
     float angle = -atan2f(m_pOwner->m_front.z, m_pOwner->m_front.x) + XMConvertToRadians(270);
     XMMATRIX rotY   = XMMatrixRotationY(angle);

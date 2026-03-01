@@ -7,7 +7,7 @@
 
 ==============================================================================*/
 #include "monster.h"
-#include "monster_slime.h"
+#include "monster_spider.h"
 #include "monster_wolf.h"
 #include "monster_dragon.h"
 #include "model.h"
@@ -21,7 +21,7 @@ using namespace DirectX;
 #include <cassert>
 
 // モンスター描画用テクスチャ（外部から参照可能に）
-int g_MonsterTexSlime = -1;
+int g_MonsterTexSpider = -1;
 int g_MonsterTexWolf = -1;
 int g_MonsterTexDragon = -1;
 
@@ -31,7 +31,7 @@ int g_MonsterTexDragon = -1;
 static const MonsterBaseParam g_MonsterBaseParams[MONSTER_KIND_MAX] =
 {
     // kind               name        hp   mp  atk  def  spd  exp   skills
-    { MONSTER_KIND_SLIME,  "スライム",  20,  10,   5,   3,   4,  10, { SKILL_ATTACK, SKILL_NONE,   SKILL_NONE, SKILL_NONE } },
+    { MONSTER_KIND_SPIDER,  "クモ",      20,  10,   5,   3,   4,  10, { SKILL_ATTACK, SKILL_NONE,   SKILL_NONE, SKILL_NONE } },
     { MONSTER_KIND_WOLF,   "オオカミ",  50,  10,  15,   8,  12,  35, { SKILL_ATTACK, SKILL_NONE,   SKILL_NONE, SKILL_NONE } },
     { MONSTER_KIND_DRAGON, "ドラゴン", 120,  50,  30,  20,  10, 100, { SKILL_ATTACK, SKILL_FIRE,   SKILL_NONE, SKILL_NONE } },
 };
@@ -136,11 +136,11 @@ void Monster::Draw() const
     }
     else {
         // デフォルト描画（ステートがない場合）
-        int texture_id = g_MonsterTexSlime;
+        int texture_id = g_MonsterTexSpider;
         
         switch (m_kind) {
-        case MONSTER_KIND_SLIME:
-            texture_id = g_MonsterTexSlime;
+        case MONSTER_KIND_SPIDER:
+            texture_id = g_MonsterTexSpider;
             Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.2f, 0.8f, 0.2f, 1.0f });
             break;
         case MONSTER_KIND_WOLF:
@@ -152,7 +152,7 @@ void Monster::Draw() const
             Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
             break;
         default:
-            texture_id = g_MonsterTexSlime;
+            texture_id = g_MonsterTexSpider;
             break;
         }
         
@@ -277,7 +277,7 @@ void Monster_Initialize()
     g_MonsterCount = 0;
     
     // テクスチャロード（仮のテクスチャを流用）
-    g_MonsterTexSlime = Texture_Load(L"resource/texture/blue.png");  // 青系
+    g_MonsterTexSpider = Texture_Load(L"resource/texture/blue.png");  // 青系
     g_MonsterTexWolf = Texture_Load(L"resource/texture/green.png");    // 緑系
     g_MonsterTexDragon = Texture_Load(L"resource/texture/red.png");   // 赤系
 }
@@ -327,11 +327,11 @@ void Monster_Create(MonsterKind kind, const XMFLOAT3& position, int level)
     g_MonsterCount++;
 }
 
-void Monster_CreateSlime(const XMFLOAT3& position, int level)
+void Monster_CreateSpider(const XMFLOAT3& position, int level)
 {
     if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
 
-    g_pMonsters[g_MonsterCount] = new MonsterSlime(position, level);
+    g_pMonsters[g_MonsterCount] = new MonsterSpider(position, level);
     g_MonsterCount++;
 }
 

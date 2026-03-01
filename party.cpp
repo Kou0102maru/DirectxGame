@@ -64,7 +64,7 @@ const PartyMonster* Party_Get(int index)
 const char* Party_GetKindName(MonsterKind kind)
 {
     switch (kind) {
-    case MONSTER_KIND_SLIME:  return "Slime";
+    case MONSTER_KIND_SPIDER:  return "Spider";
     case MONSTER_KIND_WOLF:   return "Wolf";
     case MONSTER_KIND_DRAGON: return "Dragon";
     default:                  return "???";

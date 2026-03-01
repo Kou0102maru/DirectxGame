@@ -25,7 +25,7 @@ using namespace DirectX;
 #include "sky.h"
 #include "enemy.h"
 #include"monster.h"
-#include"monster_slime.h"
+#include"monster_spider.h"
 #include "mouse.h"
 #include "cube.h"
 #include "sprite.h"
@@ -78,11 +78,11 @@ static SpawnPoint g_SpawnPoints[SPAWN_POINT_COUNT];
 static void InitSpawnPoints()
 {
     // スライム × 5（序盤?中盤に配置）
-    g_SpawnPoints[0] = { MONSTER_KIND_SLIME, 1, {  8.0f, 0.5f,  8.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[1] = { MONSTER_KIND_SLIME, 1, {-15.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[2] = { MONSTER_KIND_SLIME, 2, { 20.0f, 0.5f, 25.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[3] = { MONSTER_KIND_SLIME, 1, {-30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[4] = { MONSTER_KIND_SLIME, 2, { 35.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[0] = { MONSTER_KIND_SPIDER, 1, {  8.0f, 0.5f,  8.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[1] = { MONSTER_KIND_SPIDER, 1, {-15.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[2] = { MONSTER_KIND_SPIDER, 2, { 20.0f, 0.5f, 25.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[3] = { MONSTER_KIND_SPIDER, 1, {-30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[4] = { MONSTER_KIND_SPIDER, 2, { 35.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
     // オオカミ × 4（中盤?奥に配置）
     g_SpawnPoints[5] = { MONSTER_KIND_WOLF,  3, {-25.0f, 0.5f, 10.0f }, SPAWN_READY, nullptr };
     g_SpawnPoints[6] = { MONSTER_KIND_WOLF,  3, { 30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr };
@@ -96,8 +96,8 @@ static Monster* SpawnAtPoint(MonsterKind kind, int level, const XMFLOAT3& pos)
     int count_before = Monster_GetCount();
 
     switch (kind) {
-    case MONSTER_KIND_SLIME:
-        Monster_CreateSlime(pos, level);
+    case MONSTER_KIND_SPIDER:
+        Monster_CreateSpider(pos, level);
         break;
     case MONSTER_KIND_WOLF:
         Monster_CreateWolf(pos, level);
