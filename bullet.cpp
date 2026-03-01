@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   íeä€ÇÃä«óù [bullet.cpp]
+   íeÇÃä«óù [bullet.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/11/12
 --------------------------------------------------------------------------------
@@ -118,7 +118,9 @@ void Bullet_Create(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& v
 		return;
 	}
 
-	g_pBullets[g_BulletsCount++] = new Bullet(position, velocity);
+#pragma warning(suppress: 6386)
+	g_pBullets[g_BulletsCount] = new Bullet(position, velocity);
+	g_BulletsCount++;
 }
 
 void Bullet_Destroy(int index)

@@ -1,7 +1,7 @@
 /*==============================================================================
 
    オオカミモンスター [monster_wolf.cpp]
-                                                         Author : 
+                                                         Author :
                                                          Date   : 2025/xx/xx
 --------------------------------------------------------------------------------
 
@@ -13,20 +13,25 @@
 #include "light.h"
 #include "player_camera.h"
 #include "texture.h"
+#include "model.h"
 #include <DirectXMath.h>
 using namespace DirectX;
 #include <cstdlib>
 
-// 検知範囲
+// 索敵範囲
 static constexpr float DETECTION_RADIUS = 10.0f;
 // 徘徊速度
 static constexpr float ROAM_SPEED = 4.0f;
 // 追跡速度
 static constexpr float CHASE_SPEED = 3.0f;
-// 追跡をあきらめる時間
+// 追跡を諦めるまでの時間
 static constexpr double GIVE_UP_TIME = 5.0;
 // ターゲット変更間隔
 static constexpr double CHANGE_TARGET_INTERVAL = 3.0;
+
+// フィールド用オオカミモデル（一度ロードしたら保持）
+static MODEL* g_pWolfFieldModel = nullptr;
+static constexpr float WOLF_FIELD_SCALE = 3.0f;
 
 extern int g_MonsterTexWolf;
 
@@ -36,11 +41,15 @@ extern int g_MonsterTexWolf;
 MonsterWolf::MonsterWolf(const XMFLOAT3& position, int level)
     : Monster(MONSTER_KIND_WOLF, position, level)
 {
+    // モデルを一度だけロード（スケール変更時は再起動で反映）
+    if (!g_pWolfFieldModel) {
+        g_pWolfFieldModel = ModelLoad("resource/model/Wolf.fbx", WOLF_FIELD_SCALE, true);
+    }
     ChangeState(new StateRoam(this));
 }
 
 //=============================================================================
-// 徘徊状態（速く走り回る）
+// 徘徊状態（ランダム移動）
 //=============================================================================
 MonsterWolf::StateRoam::StateRoam(MonsterWolf* pOwner)
     : m_pOwner(pOwner)
@@ -51,8 +60,8 @@ MonsterWolf::StateRoam::StateRoam(MonsterWolf* pOwner)
 void MonsterWolf::StateRoam::SetNewTarget()
 {
     // ランダムな位置を設定
-    float random_x = ((float)rand() / RAND_MAX) * 30.0f - 15.0f;
-    float random_z = ((float)rand() / RAND_MAX) * 30.0f - 15.0f;
+    float random_x = ((float)rand() / RAND_MAX) * 80.0f - 40.0f;
+    float random_z = ((float)rand() / RAND_MAX) * 80.0f - 40.0f;
     m_target_position = { random_x, 0.5f, random_z };
     m_change_target_time = 0.0;
 }
@@ -92,11 +101,20 @@ void MonsterWolf::StateRoam::Draw() const
 {
     Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.6f, 0.5f, 0.3f, 1.0f });
 
-    XMMATRIX world = XMMatrixTranslation(
-        m_pOwner->m_position.x, 
-        m_pOwner->m_position.y, 
+    // 進行方向を向くよう Y 軸回転を計算（bBlenderで座標系変換済み）
+    float angle = -atan2f(m_pOwner->m_front.z, m_pOwner->m_front.x) + XMConvertToRadians(270);
+    XMMATRIX rotY   = XMMatrixRotationY(angle);
+    XMMATRIX trans = XMMatrixTranslation(
+        m_pOwner->m_position.x,
+        m_pOwner->m_position.y,
         m_pOwner->m_position.z);
-    Cube_Draw(g_MonsterTexWolf, world);
+    XMMATRIX world = rotY * trans;
+
+    if (g_pWolfFieldModel) {
+        ModelDraw(g_pWolfFieldModel, world);
+    } else {
+        Cube_Draw(g_MonsterTexWolf, trans);
+    }
 }
 
 //=============================================================================
@@ -114,7 +132,7 @@ void MonsterWolf::StateChase::Update(double elapsed_time)
     float distance = XMVectorGetX(XMVector3Length(to_player));
 
     if (distance <= DETECTION_RADIUS) {
-        // 全力疾走でプレイヤーを追跡
+        // 全力でプレイヤーを追跡
         XMVECTOR direction = XMVector3Normalize(to_player);
         XMVECTOR position = XMLoadFloat3(&m_pOwner->m_position);
         position += direction * CHASE_SPEED * (float)elapsed_time;
@@ -137,12 +155,20 @@ void MonsterWolf::StateChase::Update(double elapsed_time)
 
 void MonsterWolf::StateChase::Draw() const
 {
-    // 追跡中は赤っぽく
+    // 追跡中は赤みがかった光
     Light_SetSpecularWorld(PlayerCamera_GetPosition(), 3.0f, { 0.8f, 0.4f, 0.2f, 1.0f });
 
-    XMMATRIX world = XMMatrixTranslation(
-        m_pOwner->m_position.x, 
-        m_pOwner->m_position.y, 
+    float angle = -atan2f(m_pOwner->m_front.z, m_pOwner->m_front.x) + XMConvertToRadians(270);
+    XMMATRIX rotY   = XMMatrixRotationY(angle);
+    XMMATRIX trans = XMMatrixTranslation(
+        m_pOwner->m_position.x,
+        m_pOwner->m_position.y,
         m_pOwner->m_position.z);
-    Cube_Draw(g_MonsterTexWolf, world);
+    XMMATRIX world = rotY * trans;
+
+    if (g_pWolfFieldModel) {
+        ModelDraw(g_pWolfFieldModel, world);
+    } else {
+        Cube_Draw(g_MonsterTexWolf, trans);
+    }
 }

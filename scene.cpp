@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   ???J????? [scene.cpp]
+   シーン管理 [scene.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/07/11
 --------------------------------------------------------------------------------
@@ -9,7 +9,7 @@
 #include "scene.h"
 #include "title.h"
 #include "game.h"
-#include "battle.h"  // ???????
+#include "battle.h"  // バトル追加
 
 
 // static Scene g_Scene = SCENE_TITLE;
@@ -28,11 +28,11 @@ void Scene_Initialize()
 	case SCENE_GAME:
 		Game_Initialize();
 		break;
-	case SCENE_BATTLE:  // ???????
+	case SCENE_BATTLE:  // バトル追加
 		Battle_Initialize();
 		break;
 	case SCENE_RESULT:
-		// ???U???g?V?[?????????
+		// リザルトシーン初期化処理
 		break;
 	default:
 		break;
@@ -49,11 +49,11 @@ void Scene_Finalize()
 	case SCENE_GAME:
 		Game_Finalize();
 		break;
-	case SCENE_BATTLE:  // ???????
+	case SCENE_BATTLE:  // バトル追加
 		Battle_Finalize();
 		break;
 	case SCENE_RESULT:
-		// ???U???g?V?[?????????
+		// リザルトシーン初期化処理
 		break;
 	default:
 		break;
@@ -70,11 +70,11 @@ void Scene_Update(double elapsed_time)
 	case SCENE_GAME:
 		Game_Update(elapsed_time);
 		break;
-	case SCENE_BATTLE:  // ???????
+	case SCENE_BATTLE:  // バトル追加
 		Battle_Update(elapsed_time);
 		break;
 	case SCENE_RESULT:
-		// ???U???g?V?[?????????
+		// リザルトシーン初期化処理
 		break;
 	default:
 		break;
@@ -91,11 +91,11 @@ void Scene_Draw()
 	case SCENE_GAME:
 		Game_Draw();
 		break;
-	case SCENE_BATTLE:  // ???????
+	case SCENE_BATTLE:  // バトル追加
 		Battle_Draw();
 		break;
 	case SCENE_RESULT:
-		// ???U???g?V?[?????????
+		// リザルトシーン初期化処理
 		break;
 	default:
 		break;

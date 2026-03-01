@@ -22,7 +22,7 @@ struct MODEL
 
 	std::unordered_map<std::string, ID3D11ShaderResourceView*> Texture;
 
-	AABB local_aabb;
+	AABB local_aabb{};
 };
 
 MODEL* ModelLoad(const char* FileName, float scale = 1.0f, bool bBlender = false);

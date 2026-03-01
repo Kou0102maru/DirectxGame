@@ -11,9 +11,9 @@ void NormalParticle::Update(double elapsed_time)
 	float ratio = std::fminf(GetAccumulatedTime() / GetLifeTime(), 1.0f);
 
 	m_scale = (1.0f - ratio) * 0.5f;
-	m_alpha = (1.0f - easeInCirc(ratio));
+	m_alpha = static_cast<float>(1.0 - easeInCirc(ratio));
 
-	AddPosition(GetVelocity() * elapsed_time);
+	AddPosition(GetVelocity() * static_cast<float>(elapsed_time));
 	//AddVelocity(XMVECTOR{ 0.0f,-5.0f,0.0f }*elapsed_time);
 
 

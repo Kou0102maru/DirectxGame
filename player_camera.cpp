@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   プレイヤー用のカメラ制御 [player_camera.cpp]
+   プレイヤー用カメラ処理 [player_camera.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/10/31
 --------------------------------------------------------------------------------
@@ -31,6 +31,7 @@ void PlayerCamera_Finalize()
 
 void PlayerCamera_Update(double elapsed_time)
 {
+	(void)elapsed_time;
 	// XMVECTOR position = XMLoadFloat3(&Player_GetPosition()) - XMLoadFloat3(&Player_GetFront()) * 5.0f;
 	XMVECTOR position = XMLoadFloat3(&Player_GetPosition());
 	position *= {1.0f, 0.0f, 1.0f};
@@ -43,22 +44,22 @@ void PlayerCamera_Update(double elapsed_time)
 	XMStoreFloat3(&g_CameraPosition, position);
 	XMStoreFloat3(&g_CameraFront, front);
 
-	// ビュー座標変換行列の作成
+	// ビュー座標変換行列作成
 	XMMATRIX mtxView = XMMatrixLookAtLH(
 		position,
 		target,
-		{ 0.0f, 1.0f, 0.0f }); // 上向き
+		{ 0.0f, 1.0f, 0.0f }); // 上方向
 
-	// カメラ行列を保存
+	// カメラ行列保存
 	XMStoreFloat4x4(&g_CameraMatrix, mtxView);
 
-	// パースペクティブ行列の作成
+	// パースペクティブ行列作成
 	float aspectRatio = (float)Direct3D_GetBackBufferWidth() / Direct3D_GetBackBufferHeight();
 	float nearz = 0.1f;
 	float farz = 400.0f;
 	XMMATRIX mtxPerspective = XMMatrixPerspectiveFovLH(1.0f, aspectRatio, nearz, farz);
 
-	// パースペクティブ行列の保存
+	// パースペクティブ行列保存
 	XMStoreFloat4x4(&g_CameraPerspectiveMatrix, mtxPerspective);
 }
 

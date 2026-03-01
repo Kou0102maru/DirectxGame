@@ -9,7 +9,7 @@ using namespace DirectX;
 void EnemyNormal::EnemyNormalStatePatrol::Update(double elapsed_time)
 {
 	g_AccumulatedTime += elapsed_time;
-	m_pOwner->m_Position.x = m_PointX + sinf(g_AccumulatedTime) * 5.0f;
+	m_pOwner->m_Position.x = m_PointX + sinf(static_cast<float>(g_AccumulatedTime)) * 5.0f;
 
 	if (Collision_IsOverlapSphere(
 		{ m_pOwner->m_Position, m_pOwner->m_DetectionRadius },
@@ -35,15 +35,15 @@ void EnemyNormal::EnemyNormalStatePatrol::DepthDraw() const
 
 void EnemyNormal::EnemyNormalStateChase::Update(double elapsed_time)
 {
-	// プレイヤーはどっちにいますかー
+	// プレイヤーへの方向ベクトル
 	XMVECTOR toPlayer = XMLoadFloat3(&Player_GetPosition()) - XMLoadFloat3(&m_pOwner->m_Position);
 	toPlayer = XMVector3Normalize(toPlayer);
 
-	// 歩くぜー
+	// 移動処理
 	XMVECTOR position = XMLoadFloat3(&m_pOwner->m_Position) + toPlayer * 3.0f * (float)elapsed_time;
 	XMStoreFloat3(&m_pOwner->m_Position, position);
 
-	// 諦める
+	// 検知範囲外判定
 	if (!Collision_IsOverlapSphere(
 		{ m_pOwner->m_Position, m_pOwner->m_DetectionRadius },
 		Player_GetPosition())) {

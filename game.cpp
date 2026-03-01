@@ -38,10 +38,125 @@ using namespace DirectX;
 #include"easing_cube.h"
 #include"battle.h"
 #include"particle_test.h"
+#include"party.h"
+#include <cstdlib>
 
 static double g_AccumulatedTime = 0.0;
 static bool g_IsDebug = false;
 static int g_TestTex01{ -1 };
+
+// ステータス画面
+static bool g_ShowStatus = false;
+static hal::DebugText* g_pStatusText = nullptr;
+static int g_StatusWhiteTex = -1;
+
+//=============================================================================
+// 距離ベース敵出現システム（ドラゴン除外）
+//=============================================================================
+static constexpr float SPAWN_DISTANCE = 30.0f;  // この距離以内に近づくと出現
+static constexpr float RESET_DISTANCE = 50.0f;  // この距離以上離れると再出現可能になる
+
+// 出現ポイントの状態
+enum SpawnState {
+    SPAWN_READY,     // 出現可能（プレイヤー接近待ち）
+    SPAWN_ACTIVE,    // モンスター出現中
+    SPAWN_DEFEATED   // 撃破済み（プレイヤーが離れるまで待ち）
+};
+
+struct SpawnPoint {
+    MonsterKind kind;        // モンスター種別
+    int         level;       // レベル
+    XMFLOAT3    position;    // 固定出現位置
+    SpawnState  state;       // 現在の状態
+    Monster*    pMonster;    // 出現中のモンスターポインタ
+};
+
+static constexpr int SPAWN_POINT_COUNT = 9;  // スライム5 + オオカミ4
+static SpawnPoint g_SpawnPoints[SPAWN_POINT_COUNT];
+
+// 出現ポイントの初期化
+static void InitSpawnPoints()
+{
+    // スライム × 5（序盤?中盤に配置）
+    g_SpawnPoints[0] = { MONSTER_KIND_SLIME, 1, {  8.0f, 0.5f,  8.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[1] = { MONSTER_KIND_SLIME, 1, {-15.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[2] = { MONSTER_KIND_SLIME, 2, { 20.0f, 0.5f, 25.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[3] = { MONSTER_KIND_SLIME, 1, {-30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[4] = { MONSTER_KIND_SLIME, 2, { 35.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
+    // オオカミ × 4（中盤?奥に配置）
+    g_SpawnPoints[5] = { MONSTER_KIND_WOLF,  3, {-25.0f, 0.5f, 10.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[6] = { MONSTER_KIND_WOLF,  3, { 30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[7] = { MONSTER_KIND_WOLF,  4, {-10.0f, 0.5f, 35.0f }, SPAWN_READY, nullptr };
+    g_SpawnPoints[8] = { MONSTER_KIND_WOLF,  4, { 15.0f, 0.5f, 40.0f }, SPAWN_READY, nullptr };
+}
+
+// 出現ポイントにモンスターを生成
+static Monster* SpawnAtPoint(MonsterKind kind, int level, const XMFLOAT3& pos)
+{
+    int count_before = Monster_GetCount();
+
+    switch (kind) {
+    case MONSTER_KIND_SLIME:
+        Monster_CreateSlime(pos, level);
+        break;
+    case MONSTER_KIND_WOLF:
+        Monster_CreateWolf(pos, level);
+        break;
+    default:
+        return nullptr;
+    }
+
+    if (Monster_GetCount() > count_before) {
+        return Monster_Get(Monster_GetCount() - 1);
+    }
+    return nullptr;
+}
+
+// プレイヤーとの距離を計算（XZ平面）
+static float CalcDistanceXZ(const XMFLOAT3& a, const XMFLOAT3& b)
+{
+    float dx = a.x - b.x;
+    float dz = a.z - b.z;
+    return sqrtf(dx * dx + dz * dz);
+}
+
+// 距離ベース出現更新処理
+static void UpdateSpawnSystem()
+{
+    XMFLOAT3 player_pos = Player_GetPosition();
+
+    for (int i = 0; i < SPAWN_POINT_COUNT; i++) {
+        SpawnPoint& sp = g_SpawnPoints[i];
+        float dist = CalcDistanceXZ(player_pos, sp.position);
+
+        switch (sp.state) {
+        case SPAWN_READY:
+            // プレイヤーが接近したら出現
+            if (dist < SPAWN_DISTANCE) {
+                sp.pMonster = SpawnAtPoint(sp.kind, sp.level, sp.position);
+                if (sp.pMonster) {
+                    sp.state = SPAWN_ACTIVE;
+                }
+            }
+            break;
+
+        case SPAWN_ACTIVE:
+            // モンスターが倒されたか確認
+            if (sp.pMonster == nullptr || !Monster_Exists(sp.pMonster)) {
+                sp.pMonster = nullptr;
+                sp.state = SPAWN_DEFEATED;
+            }
+            break;
+
+        case SPAWN_DEFEATED:
+            // プレイヤーが十分離れたら再出現可能に戻す
+            if (dist > RESET_DISTANCE) {
+                sp.state = SPAWN_READY;
+            }
+            break;
+        }
+    }
+}
 //static int g_BillboardTex{ -1 };
 
 void mapRendering();
@@ -52,8 +167,8 @@ static NormalEmitter* g_Emitter;
 
 void Game_Initialize()
 {
-	// ★戦闘から戻る時は、保存した位置で初期化★
-	extern XMFLOAT3 g_PlayerSavePosition;  // battle.cpp で保存した位置
+	// 戦闘から復帰時、保存した位置から開始する
+	extern XMFLOAT3 g_PlayerSavePosition;  // battle.cpp で定義された保存位置
 	extern bool g_ReturnFromBattle;
 
 	if (g_ReturnFromBattle) {
@@ -61,12 +176,13 @@ void Game_Initialize()
 	}
 	else {
 		Player_Initialize({ 0.0f, 0.5f, 5.0f }, { 0.0f, 0.0f, 1.0f });
+		Party_Initialize();  // パーティは初回のみ初期化（戦闘復帰時は保持）
 	}
 
 	Enemy_Initialize();
 	Monster_Initialize();
 	Camera_Initialize({ 8.2f, 8.4f, -12.7f }, { -0.5f, -0.3f, 0.7f }, { 0.8f, 0.0f, 0.5f });
-	PlayerCamera_Initialize();	
+	PlayerCamera_Initialize();
 	Map_Initialize();
 	Bullet_Initialize();
 	Sky_Initialize();
@@ -81,23 +197,35 @@ void Game_Initialize()
 	//Enemy_Create({-3.0f, 1.0f, 5.0f});
 	//Enemy_Create({ 8.0f, 3.0f, 20.0f });
 
-	// スライム（左右にパトロール）
-	Monster_CreateSlime({ 5.0f, 0.5f, 5.0f }, 1);
-	Monster_CreateSlime({ -5.0f, 0.5f, 10.0f }, 1);
-	Monster_CreateSlime({ 10.0f, 0.5f, 15.0f }, 1);
+	// 距離ベース出現ポイント初期化（通常敵はプレイヤー接近時に出現）
+	InitSpawnPoints();
 
-	// オオカミ（速く走り回る）
-	Monster_CreateWolf({ -10.0f, 0.5f, 5.0f }, 3);
-	Monster_CreateWolf({ 15.0f, 0.5f, 20.0f }, 3);
-
-	// ドラゴン（空中を旋回）
-	Monster_CreateDragon({ 0.0f, 5.0f, 30.0f }, 5);
+	// ドラゴン（ラスボス）をマップ最奥に固定配置（距離出現の対象外）
+	Monster_CreateDragon({ 0.0f, 3.0f, 45.0f }, 5);
 
 	//g_TestTex01 = Texture_Load(L"resource/texture/knight.png");
 	//g_BillboardTex = Texture_Load(L"resource/texture/knight.png");
 	g_IsDebug = false;
 
 	g_ReturnFromBattle = false;
+
+	// ステータス画面の初期化
+	g_ShowStatus = false;
+	if (g_StatusWhiteTex < 0) {
+		g_StatusWhiteTex = Texture_Load(L"resource/texture/white.png");
+	}
+	delete g_pStatusText;
+	{
+		float sw = (float)Direct3D_GetBackBufferWidth();
+		float sh = (float)Direct3D_GetBackBufferHeight();
+		g_pStatusText = new hal::DebugText(
+			Direct3D_GetDevice(), Direct3D_GetContext(),
+			L"resource/texture/consolab_ascii_512.png",
+			(UINT)sw, (UINT)sh,
+			sw * 0.5f - 130.0f, sh * 0.5f - 140.0f,
+			18, 0, 20.0f, 12.0f
+		);
+	}
 }
 
 
@@ -105,6 +233,9 @@ void Game_Finalize()
 {
 	//delete g_Emitter;
 	//g_Emitter = nullptr;
+
+	delete g_pStatusText;
+	g_pStatusText = nullptr;
 
 	CircleShadow_Finalize();
 	Trajectory3d_Finalize();
@@ -122,6 +253,14 @@ void Game_Finalize()
 
 void Game_Update(double elapsed_time)
 {
+	// Mキー：ステータス画面のトグル（ポーズ中でも受け付ける）
+	if (KeyLogger_IsTrigger(KK_M)) {
+		g_ShowStatus = !g_ShowStatus;
+	}
+
+	// ステータス画面表示中はゲーム停止
+	if (g_ShowStatus) return;
+
 	g_AccumulatedTime += elapsed_time;
 
 	Player_Update(elapsed_time);
@@ -138,12 +277,13 @@ void Game_Update(double elapsed_time)
 		if (distance < 2.0f) {
 			Battle_SetEnemy(monster);
 			Scene_Change(SCENE_BATTLE);
-			return; 
+			return;
 		}
 	}
 
 	Enemy_Update(elapsed_time);
 	Monster_Update(elapsed_time);
+	UpdateSpawnSystem();
 	Sky_SetPosition(Player_GetPosition());
 
 	if (g_IsDebug) {
@@ -155,7 +295,7 @@ void Game_Update(double elapsed_time)
 
 	Bullet_Update(elapsed_time);
 
-	// 弾とマップとの当たり判定（AABB vs AABB）
+	// 弾とマップの当たり判定（AABB vs AABB）
 	for (int j = 0; j < Map_GetObjectsCount(); j++) {
 		for (int i = 0; i < Bullet_GetBulletsCount(); i++) {
 			AABB bullet = Bullet_GetAABB(i);
@@ -167,7 +307,7 @@ void Game_Update(double elapsed_time)
 		}
 	}
 
-	// 敵と弾との当たり判定
+	// 敵と弾の当たり判定
 	for (int j = 0; j < Enemy_GetEnemyCount(); j++) {
 		for (int i = 0; i < Bullet_GetBulletsCount(); i++) {
 			Sphere bullet = Bullet_GetSphere(i);
@@ -199,11 +339,11 @@ void Game_Draw()
 {
 	Direct3D_SetDepthEnable(true);
 	Direct3D_SetAlphaBlendTransparent();
-	mapRendering();//オフスクリーンへレンダリング
+	mapRendering();// オフスクリーンへのレンダリング
 	//lightRendering();
 	//Direct3D_SetDepthTexture(2);
-	//レンダーターゲットをバックバッファへ
-	
+	// レンダーターゲットをバックバッファへ
+
 	Direct3D_SetBackBuffer();
 	Direct3D_ClearBackBuffer();
 
@@ -218,30 +358,30 @@ void Game_Draw()
 	XMFLOAT3 test_near = Direct3D_ScreenToWorld(ms.x, ms.y, 0.0f, mtxView, PlayerCamera_GetPerspectiveMatrix());
 	XMFLOAT3 test_far = Direct3D_ScreenToWorld(ms.x, ms.y, 1.0f, mtxView, PlayerCamera_GetPerspectiveMatrix());
 
-	// yが0になる場所を求める
-	XMVECTOR vtest = XMLoadFloat3(&test_far) - XMLoadFloat3(&test_near); // nearからfarのベクトルを求める
+	// y=0の平面との交点を求める
+	XMVECTOR vtest = XMLoadFloat3(&test_far) - XMLoadFloat3(&test_near); // nearからfarへのベクトルを求める
 	vtest = XMVector3Normalize(vtest); // 単位ベクトルにする
 
-	// nearのyをnearからfar向きの単位ベクトルのyで割って
-	// y = 0になる比率（何倍すれば0になるか）を算出する※下向きなのでマイナスにしておく
-	float ratio = -XMVectorGetY(XMLoadFloat3(&test_near)) / XMVectorGetY(vtest); 
-	vtest = XMLoadFloat3(&test_near) + vtest * ratio; // near座標 + farへの単位ベクトル * y = 0になる長さ（比率）
+	// nearのyとnearからfarへの単位ベクトルのyで比率を求める
+	// y = 0の距離（基本的に0以上）を算出してマイナスの場合はマイナスで割る
+	float ratio = -XMVectorGetY(XMLoadFloat3(&test_near)) / XMVectorGetY(vtest);
+	vtest = XMLoadFloat3(&test_near) + vtest * ratio; // near座標 + farへの単位ベクトル * y = 0までの距離（比率）
 
-	// カメラに関する行列をシェーダーに設定する
+	// カメラのビュー行列をシェーダーに設定
 	Camera_SetMatrix(view, proj);
 
-	// ビルボードにカメラの行列を設定する
+	// ビルボードにカメラのビュー行列を設定
 	Billboard_SetViewMatrix(mtxView);
 
 	// テクスチャーサンプラーの設定
 	Sampler_SetFilterAnisotropic();
-	
-	// 空の表示
+
+	// 空の描画
 	Direct3D_SetDepthEnable(false);
 	Sky_Draw();
 	Direct3D_SetDepthEnable(true);
 
-	// 各種ライトの設定
+	// 平行ライト設定
 	Light_SetAmbient({0.3f, 0.3f, 0.3f});
 	XMVECTOR v{ -1.0f, -1.0f, 1.0f };
 	v = XMVector3Normalize(v);
@@ -260,7 +400,7 @@ void Game_Draw()
 	Light_SetPointLight(0, pp0, 5.0f, { 1.0f, 0.0f, 0.0f });
 	Light_SetPointLight(1, pp1, 6.0f, { 0.0f, 1.0f, 0.0f });
 	Light_SetPointLight(2, pp2, 7.0f, { 0.0f, 0.0f, 1.0f });
-	
+
 	Enemy_Draw();
 	Monster_Draw();
 	Map_Draw();
@@ -270,35 +410,35 @@ void Game_Draw()
 	Player_Draw();
 	Light_SetLimLight({ 0.0f, 0.0f, 0.0f }, 0.0f);
 
-	// ★ここにビルボード描画を追加★
+	// 半透明ビルボード描画の準備
 	Direct3D_SetDepthWriteDisable();
 
-	// プレイヤー頭上にビルボード
+	// プレイヤー上にビルボード
 	//XMFLOAT3 playerPos = Player_GetPosition();
 	//XMFLOAT3 billPos = { playerPos.x, playerPos.y + 3.0f, playerPos.z };
 	//Billboard_Draw(g_BillboardTex, billPos, { 2.0f, 2.0f });
 
 	Direct3D_SetDepthEnable(true);
 
-	//エフェクト類の描画実験
+	// エフェクトの描画処理
 	// Direct3D_SetAlphaBlendAdd();
 	Direct3D_SetDepthWriteDisable();
 	BulletHitEffect_Draw();
 	Trajectory3d_Draw();
 	Direct3D_SetDepthEnable(true);
 	// Direct3D_SetAlphaBlendTransparent();
-	
-	//緑のサークルパーティクル
+
+	// リソースパーティクル
 	//Direct3D_SetDepthWriteDisable();
 	//Direct3D_SetAlphaBlendAdd();
 	//g_Emitter->Draw();
 
-	/*ここから２DにUI描画*/
+	/* ここから2DのUI描画 */
 	Direct3D_SetDepthEnable(false);
 
 	Sprite_Begin();
 
-	//マウス座標に表示しているキューブの座標に2Dスプライトの描画実験
+	// マウス座標の表示やキューブ座標の2Dスプライト描画処理
 	XMFLOAT3 cube_pos;
 	XMStoreFloat3(&cube_pos, vtest);
 	//XMFLOAT2 pos = Direct3D_WorldToScreen(cube_pos,mtxView,PlayerCamera_GetPerspectiveMatrix());
@@ -306,14 +446,60 @@ void Game_Draw()
 
 	Direct3D_SetAlphaBlendTransparent();
 
-	//マップの描画
+	// マップの描画
 	Direct3D_SetOffscreenTexture(0);
 	//Sprite_DrawCircle(Direct3D_GetBackBufferWidht() * 0.8f, Direct3D_GetBackBufferHeight() * 0.04f, 256, 256);
 	Sprite_Draw(Direct3D_GetBackBufferWidth() * 0.8f, Direct3D_GetBackBufferHeight() * 0.04f, 256, 256);
-	
+
+	// ステータス画面オーバーレイ（Mキーで表示）
+	if (g_ShowStatus && g_StatusWhiteTex >= 0) {
+		float sw = (float)Direct3D_GetBackBufferWidth();
+		float sh = (float)Direct3D_GetBackBufferHeight();
+
+		// パーティ人数に応じてパネルサイズを計算
+		int party_count = Party_GetCount();
+		float panel_h = 210.0f + (party_count > 0 ? 40.0f + party_count * 20.0f : 0.0f);
+
+		// 背景パネル（半透明ダークブルー）
+		Sprite_Draw(g_StatusWhiteTex,
+			sw * 0.5f - 140.0f, sh * 0.5f - 145.0f,
+			280.0f, panel_h,
+			{ 0.0f, 0.0f, 0.15f, 0.88f });
+		// ステータステキスト
+		if (g_pStatusText) {
+			g_pStatusText->Clear();
+			char sbuf[512];
+			int pos = snprintf(sbuf, sizeof(sbuf),
+				"-- Status --\nLv  : %d\nHP  : %d/%d\nATK : %d\nDEF : %d\nEXP : %d\nNxt : %d",
+				Player_GetLevel(),
+				Player_GetHp(), Player_GetHpMax(),
+				Player_GetAtk(),
+				Player_GetDef(),
+				Player_GetExp(),
+				Player_GetExpNext());
+
+			// パーティ一覧を追記
+			if (party_count > 0) {
+				pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
+					"\n-- Party (%d/%d) --", party_count, Party_GetMax());
+				for (int i = 0; i < party_count; i++) {
+					const PartyMonster* pm = Party_Get(i);
+					if (pm) {
+						pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
+							"\n%-6s Lv%d", Party_GetKindName(pm->kind), pm->level);
+					}
+				}
+			}
+
+			pos += snprintf(sbuf + pos, sizeof(sbuf) - pos, "\n[M] Close");
+			g_pStatusText->SetText(sbuf, { 1.0f, 1.0f, 1.0f, 1.0f });
+			g_pStatusText->Draw();
+		}
+	}
+
 	Direct3D_SetDepthEnable(true);
 
-	//デバック文字の描画
+	// デバッグカメラの描画
 	if (g_IsDebug) {
 		//Camera_DebugDraw();
 	}
@@ -321,11 +507,11 @@ void Game_Draw()
 
 void mapRendering()
 {
-	//レンダーターゲットをテクスチャへ
+	// レンダーターゲットをテクスチャへ
 	Direct3D_SetOffscreen();
 	Direct3D_ClearOffscreen();
 
-	//マップ用カメラ（行列）の設定
+	// マップ用カメラ（行列）設定
 	XMFLOAT3 position = Player_GetPosition();
 	position.y = 150.0f;
 	MapCamera_SetPosition(position);
@@ -335,22 +521,22 @@ void mapRendering()
 	XMMATRIX view = XMLoadFloat4x4(&mtxView);
 	XMMATRIX proj = XMLoadFloat4x4(&mtxProj);
 
-	//カメラに関する行列をシェーダーに設定
+	// カメラのビュー行列をシェーダーへ設定
 	Camera_SetMatrix(view, proj);
 
-	//テクスチャーサンプラーの設定
+	// テクスチャーサンプラー設定
 	Sampler_SetFilterAnisotropic();
 
-	//マップ用ライト
-	//※ディレクショナルライトの色を真っ黒にしてしまって、アンビエントライトのみにするか
-	// 　ディレクショナルライトを真下に向けるか、ライティングはゲームそのままにするか
+	// マップ用ライト
+	// ディレクショナルライト（色と方向を設定する必要あり、アンビエントライト設定含む）
+	// ディレクショナルライトを与えるだけでは、ライティングはゲーム中と同じにならない
 	Light_SetAmbient({ 0.3f,0.3f,0.3f });
 	Light_SetDirectionalWorld({ 0.0f,-1.0f,0.0f,1.0f }, { 1.0f,1.0f,1.0f,1.0f });
 	Light_SetLimLight({ 0.0f,0.0f,0.0f }, 0.0f);
 
-	//深度有効
+	// 深度有効
 	Direct3D_SetDepthEnable(true);
-	// ミニマップモードON（影を描画しない）
+	// ミニマップモードON（影の描画を無効化）
 	CircleShadow_SetMinimapMode(true);
 
 	Enemy_Draw();
@@ -365,25 +551,25 @@ void mapRendering()
 
 void lightRendering()
 {
-	//レンダーターゲットをテクスチャへ
+	// レンダーターゲットをテクスチャへ
 	Direct3D_SetDepth();
 	Direct3D_ClearDepth();
 
-	//ライトカメラ（行列）の設定
+	// ライトカメラ（行列）設定
 	XMFLOAT4X4 mtxView = LightCamera_GetViewMatrix();
 	XMFLOAT4X4 mtxProj = LightCamera_GetProjectionMatrix();
 	XMMATRIX view = XMLoadFloat4x4(&mtxView);
 	XMMATRIX proj = XMLoadFloat4x4(&mtxProj);
 
-	//カメラに関する行列をシェーダーに設定
+	// カメラのビュー行列をシェーダーへ設定
 	Camera_SetMatrix(view, proj);
 
-	//深度有効
+	// 深度有効
 	Direct3D_SetDepthEnable(true);
 
-	//キャスト（影を落とすオブジェクト）
+	// キャスト（影を落とすオブジェクト）
 	//Enemy_DepthDraw();
 	//Player_DepthDraw();
 	//Map_Draw();
 }
-	
+

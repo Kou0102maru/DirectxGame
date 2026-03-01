@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   パッド入力の記録 [pad_logger.cpp]
+   パッド入力記録 [pad_logger.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/11/11
 --------------------------------------------------------------------------------
@@ -107,7 +107,7 @@ float PadLogger_GetRightTrigger(DWORD user_index)
 
 void PadLogger_VibrationEnable(DWORD user_index, bool enable)
 {
-	XINPUT_VIBRATION xv{ enable ? 65535 : 0, enable ? 65535 : 0 };
+	XINPUT_VIBRATION xv{ static_cast<WORD>(enable ? 65535 : 0), static_cast<WORD>(enable ? 65535 : 0) };
 
 	XInputSetState(user_index, &xv);
 }

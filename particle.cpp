@@ -7,7 +7,7 @@ void Emitter::Update(double elapsed_time)
 
 	const double sec_per_particle = 1.0 / m_particles_per_second;
 
-	//•¬oˆ—
+	//•úoˆ—
 	while (m_accumlated_time >= sec_per_particle) {
 		if (m_count >= m_capacity)break;
 		if (m_is_emmit) {
@@ -21,8 +21,8 @@ void Emitter::Update(double elapsed_time)
 		m_particles[i]->Update(elapsed_time);
 	}
 
-	//õ–½ˆ—
-	for (int i = m_count - 1;i >= 0;i--) {
+	//íœˆ—
+	for (int i = static_cast<int>(m_count) - 1;i >= 0;i--) {
 		if (m_particles[i]->IsDestroy()) {
 			delete m_particles[i];
 			m_particles[i] = m_particles[--m_count];

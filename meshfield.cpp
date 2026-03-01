@@ -16,8 +16,8 @@ using namespace DirectX;
 
 // メッシュフィールドデータ
 static constexpr float FIELD_MESH_SIZE = 1.0f; // メッシュ１枚分のサイズ（正方形)
-static constexpr int FIELD_MESH_H_COUNT = 50; // 横のメッシュ数
-static constexpr int FIELD_MESH_V_COUNT = 50; // 縦のメッシュ数
+static constexpr int FIELD_MESH_H_COUNT = 100; // 横のメッシュ数
+static constexpr int FIELD_MESH_V_COUNT = 100; // 縦のメッシュ数
 static constexpr int FIELD_MESH_H_VERTEX_COUNT = FIELD_MESH_H_COUNT + 1; // 横の頂点数
 static constexpr int FIELD_MESH_V_VERTEX_COUNT = FIELD_MESH_V_COUNT + 1; // 縦の頂点数
 static constexpr int NUM_VERTEX = FIELD_MESH_H_VERTEX_COUNT * FIELD_MESH_V_VERTEX_COUNT; // 頂点数
@@ -72,12 +72,14 @@ void MeshField_Initialize(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 		}
 	}
 
+	// フィールド中心ライン（赤色）: 中央3列を着色
+	int center = FIELD_MESH_H_VERTEX_COUNT / 2;
 	for (int z = 0; z < FIELD_MESH_V_VERTEX_COUNT; z++) {
-		int index = 26 + FIELD_MESH_H_VERTEX_COUNT * z;
+		int index = center + FIELD_MESH_H_VERTEX_COUNT * z;
 		g_MeshFieldVertex[index].color = { 1.0f, 0.0f, 0.0f, 1.0f };
-		index = 25 + FIELD_MESH_H_VERTEX_COUNT * z;
+		index = (center - 1) + FIELD_MESH_H_VERTEX_COUNT * z;
 		g_MeshFieldVertex[index].color = { 1.0f, 0.0f, 0.0f, 1.0f };
-		index = 27 + FIELD_MESH_H_VERTEX_COUNT * z;
+		index = (center + 1) + FIELD_MESH_H_VERTEX_COUNT * z;
 		g_MeshFieldVertex[index].color = { 1.0f, 0.0f, 0.0f, 1.0f };
 	}
 

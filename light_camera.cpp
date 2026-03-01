@@ -1,5 +1,5 @@
 /*==============================================================================
-    ライト方向からのカメラ制御 [light_camera.cpp]
+    ライト方向からのカメラ処理 [light_camera.cpp]
                                                            Author : Youhei Sato
                                                                Date : 2025/6/06
 --------------------------------------------------------------------------------
@@ -33,7 +33,7 @@ void LightCamera_SetFront(const DirectX::XMFLOAT3& front)
 
 const DirectX::XMFLOAT4X4& LightCamera_GetViewMatrix()
 {
-    XMFLOAT4X4 mtxView;
+    static XMFLOAT4X4 mtxView;
 
     XMMATRIX view = XMMatrixLookToLH(XMLoadFloat3(&g_Position), XMVECTOR{ 0.0f,-1.0f,0.0f }, XMLoadFloat3(&g_Front));
 
@@ -44,9 +44,7 @@ const DirectX::XMFLOAT4X4& LightCamera_GetViewMatrix()
 
 const DirectX::XMFLOAT4X4& LightCamera_GetProjectionMatrix()
 {
-    XMFLOAT4X4 mtxProj;
-
-    float value = 40;
+    static XMFLOAT4X4 mtxProj;
 
     XMMATRIX proj = XMMatrixOrthographicOffCenterLH(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 1000.0f);
 

@@ -26,7 +26,7 @@ int g_MonsterTexWolf = -1;
 int g_MonsterTexDragon = -1;
 
 //=============================================================================
-// 種族別パラメータテーブル
+// 種別パラメータテーブル
 //=============================================================================
 static const MonsterBaseParam g_MonsterBaseParams[MONSTER_KIND_MAX] =
 {
@@ -41,20 +41,20 @@ static const MonsterBaseParam g_MonsterBaseParams[MONSTER_KIND_MAX] =
 //=============================================================================
 static const Skill g_SkillData[SKILL_MAX] =
 {
-    { SKILL_ATTACK, "こうげき",   10,  0 },
+    { SKILL_ATTACK, "たいあたり",   10,  0 },
     { SKILL_FIRE,   "ファイア",   25, 10 },
     { SKILL_HEAL,   "ヒール",      0,  8 },
 };
 
 const MonsterBaseParam* Monster_GetBaseParam(MonsterKind kind)
 {
-    assert(kind >= 0 && kind < MONSTER_KIND_MAX);
+    if (kind < 0 || kind >= MONSTER_KIND_MAX) return nullptr;
     return &g_MonsterBaseParams[kind];
 }
 
 const Skill* Monster_GetSkillData(SkillId skill_id)
 {
-    assert(skill_id >= 0 && skill_id < SKILL_MAX);
+    if (skill_id < 0 || skill_id >= SKILL_MAX) return nullptr;
     return &g_SkillData[skill_id];
 }
 
@@ -69,7 +69,7 @@ void Monster::InitParams(MonsterKind kind, int level)
     m_name  = base->name;
     m_level = level;
 
-    // レベルに応じてパラメータを成長させる（シンプルな線形成長）
+    // レベルに応じたパラメータ倍率計算（シンプルな成長曲線）
     float growth = 1.0f + (level - 1) * 0.1f;
     m_hp_max = (int)(base->base_hp  * growth);
     m_mp_max = (int)(base->base_mp  * growth);
@@ -78,7 +78,7 @@ void Monster::InitParams(MonsterKind kind, int level)
     m_spd    = (int)(base->base_spd * growth);
     m_exp    = 0;
 
-    // 次レベルまでの必要経験値（レベルが上がるほど多く必要）
+    // 次のレベルまでの必要経験値（レベルが上がるほど必要）
     m_exp_next = level * level * 10;
 
     // HP・MPは最大値で開始
@@ -163,11 +163,11 @@ void Monster::Draw() const
 }
 
 //=============================================================================
-// 戦闘処理
+// ダメージ処理
 //=============================================================================
 void Monster::TakeDamage(int damage)
 {
-    // 防御力でダメージ軽減（最低1ダメージ）
+    // 防御でダメージ軽減（最低1ダメージ）
     int actual_damage = std::max(1, damage - m_def / 2);
     m_hp -= actual_damage;
 
@@ -189,7 +189,7 @@ bool Monster::UseSkill(SkillId skill_id, Monster* target)
 
     const Skill* skill = Monster_GetSkillData(skill_id);
 
-    // MPが足りなければ失敗
+    // MP不足なら実行不可
     if (m_mp < skill->mp_cost) return false;
 
     m_mp -= skill->mp_cost;
@@ -232,14 +232,14 @@ void Monster::LevelUp()
 {
     m_level++;
 
-    // ステータスを再計算
+    // ステータス再計算
     const MonsterBaseParam* base = Monster_GetBaseParam(m_kind);
     float growth = 1.0f + (m_level - 1) * 0.1f;
 
     int new_hp_max = (int)(base->base_hp  * growth);
     int new_mp_max = (int)(base->base_mp  * growth);
 
-    // HP・MPの最大値が増えた分だけ回復
+    // HP・MPは最大値の上昇分だけ回復
     m_hp += new_hp_max - m_hp_max;
     m_mp += new_mp_max - m_mp_max;
 
@@ -249,7 +249,7 @@ void Monster::LevelUp()
     m_def    = (int)(base->base_def * growth);
     m_spd    = (int)(base->base_spd * growth);
 
-    // 次レベルまでの必要経験値を更新
+    // 次のレベルまでの必要経験値を更新
     m_exp_next = m_level * m_level * 10;
 
     // 上限チェック
@@ -258,7 +258,7 @@ void Monster::LevelUp()
 }
 
 //=============================================================================
-// 衝突判定
+// 当たり判定
 //=============================================================================
 Sphere Monster::GetCollision() const
 {
@@ -266,7 +266,7 @@ Sphere Monster::GetCollision() const
 }
 
 //=============================================================================
-// フィールド上のモンスター群管理
+// フィールドモンスター管理
 //=============================================================================
 static constexpr int MAX_FIELD_MONSTERS = 32;
 static Monster* g_pMonsters[MAX_FIELD_MONSTERS]{};
@@ -276,7 +276,7 @@ void Monster_Initialize()
 {
     g_MonsterCount = 0;
     
-    // テクスチャロード（既存のテクスチャを流用）
+    // テクスチャロード（仮のテクスチャを流用）
     g_MonsterTexSlime = Texture_Load(L"resource/texture/blue.png");  // 青系
     g_MonsterTexWolf = Texture_Load(L"resource/texture/green.png");    // 緑系
     g_MonsterTexDragon = Texture_Load(L"resource/texture/red.png");   // 赤系
@@ -293,7 +293,7 @@ void Monster_Finalize()
 
 void Monster_Update(double elapsed_time)
 {
-    // ステートを先に更新
+    // ステート順に更新
     for (int i = 0; i < g_MonsterCount; i++) {
         g_pMonsters[i]->UpdateState();
     }
@@ -323,28 +323,32 @@ void Monster_Create(MonsterKind kind, const XMFLOAT3& position, int level)
 {
     if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
 
-    g_pMonsters[g_MonsterCount++] = new Monster(kind, position, level);
+    g_pMonsters[g_MonsterCount] = new Monster(kind, position, level);
+    g_MonsterCount++;
 }
 
 void Monster_CreateSlime(const XMFLOAT3& position, int level)
 {
     if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
 
-    g_pMonsters[g_MonsterCount++] = new MonsterSlime(position, level);
+    g_pMonsters[g_MonsterCount] = new MonsterSlime(position, level);
+    g_MonsterCount++;
 }
 
 void Monster_CreateWolf(const XMFLOAT3& position, int level)
 {
     if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
 
-    g_pMonsters[g_MonsterCount++] = new MonsterWolf(position, level);
+    g_pMonsters[g_MonsterCount] = new MonsterWolf(position, level);
+    g_MonsterCount++;
 }
 
 void Monster_CreateDragon(const XMFLOAT3& position, int level)
 {
     if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
 
-    g_pMonsters[g_MonsterCount++] = new MonsterDragon(position, level);
+    g_pMonsters[g_MonsterCount] = new MonsterDragon(position, level);
+    g_MonsterCount++;
 }
 
 int Monster_GetCount()
@@ -367,4 +371,14 @@ void Monster_Remove(Monster* monster)
             return;
         }
     }
+}
+
+bool Monster_Exists(Monster* monster)
+{
+    for (int i = 0; i < g_MonsterCount; i++) {
+        if (g_pMonsters[i] == monster) {
+            return true;
+        }
+    }
+    return false;
 }

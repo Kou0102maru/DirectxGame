@@ -76,24 +76,24 @@ protected:
 	}
 
 	float GetAccumulatedTime() const {
-		return m_accumlated_time;
+		return static_cast<float>(m_accumlated_time);
 	}
 
 	float GetLifeTime() const {
-		return m_life_time;
+		return static_cast<float>(m_life_time);
 	}
 
 };
 
 
-class Emitter //噴出機
+class Emitter //発生器
 {
 private:
 	DirectX::XMVECTOR m_position{};
 	double m_particles_per_second{};
 	double m_accumlated_time = 0.0; //累積時間
 	bool m_is_emmit{};
-	size_t m_capacity{}; //パーティクル管理最大量
+	size_t m_capacity{}; //パーティクル管理最大数
 	size_t m_count{}; //現在のパーティクル数
 	Particle** m_particles{};
 

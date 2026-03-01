@@ -24,10 +24,10 @@ void MapCamera_SetFront(const XMFLOAT3& front)
 
 const DirectX::XMFLOAT4X4& MapCamera_GetViewMatrix()
 {
-	XMFLOAT4X4 mtxView;
+	static XMFLOAT4X4 mtxView;
 
 	XMMATRIX view = XMMatrixLookToLH(XMLoadFloat3(&g_Position), XMVECTOR{ 0.0f,-1.0f,0.0f }, XMLoadFloat3(&g_Front));
-	
+
 	XMStoreFloat4x4(&mtxView, view);
 
 	return mtxView;
@@ -35,7 +35,7 @@ const DirectX::XMFLOAT4X4& MapCamera_GetViewMatrix()
 
 const DirectX::XMFLOAT4X4& MapCamera_GetProjectionMatrix()
 {
-	XMFLOAT4X4 mtxProj;
+	static XMFLOAT4X4 mtxProj;
 
 	XMMATRIX proj = XMMatrixOrthographicOffCenterLH(-25.0f, 25.0f, -25.0f, 25.0f, 0.1f, 1000.0f);
 

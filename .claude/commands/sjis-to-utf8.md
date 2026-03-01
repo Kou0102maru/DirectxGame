@@ -1,6 +1,6 @@
-Convert the specified source file(s) from UTF-8 to Shift_JIS encoding.
+Convert the specified Shift_JIS source file(s) to UTF-8 encoding for editing.
 
-**This must be run AFTER editing any source file.**
+**This must be run BEFORE using the Edit tool on any Shift_JIS source file.**
 
 Arguments: $ARGUMENTS
 
@@ -14,7 +14,7 @@ For **each** specified file, run a separate PowerShell command via the Bash tool
 Use the following single-line format per file:
 
 ```
-powershell -Command "[System.IO.File]::WriteAllText('C:\DirectxGame\<FILENAME>', [System.IO.File]::ReadAllText('C:\DirectxGame\<FILENAME>', [System.Text.Encoding]::UTF8), [System.Text.Encoding]::GetEncoding('shift_jis')); Write-Host 'Converted <FILENAME> to Shift_JIS'"
+powershell -Command "[System.IO.File]::WriteAllText('C:\DirectxGame\<FILENAME>', [System.IO.File]::ReadAllText('C:\DirectxGame\<FILENAME>', [System.Text.Encoding]::GetEncoding('shift_jis')), [System.Text.Encoding]::UTF8); Write-Host 'Converted <FILENAME> to UTF-8'"
 ```
 
 Replace `<FILENAME>` with the actual file name or path from the arguments.
@@ -23,4 +23,5 @@ If multiple files are given, run the Bash commands **in parallel** (one Bash too
 
 If no arguments are given, ask the user which file(s) to convert.
 
-After conversion, report which files were successfully converted to Shift_JIS.
+After conversion, report which files were successfully converted to UTF-8.
+Remind the user to run `/sjis-convert` after editing is complete.

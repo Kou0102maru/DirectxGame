@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   Direct3Dの初期化関連 [direct3d.cpp]
+   Direct3D初期化処理 [direct3d.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/05/12
 --------------------------------------------------------------------------------
@@ -15,7 +15,7 @@ using namespace DirectX;
 #pragma comment(lib, "d3d11.lib")
 // #pragma comment(lib, "dxgi.lib")
 
-/* 各種インターフェース */
+/* 各インターフェース */
 static ID3D11Device* g_pDevice = nullptr;
 static ID3D11DeviceContext* g_pDeviceContext = nullptr;
 static IDXGISwapChain* g_pSwapChain = nullptr;
@@ -35,8 +35,8 @@ static ID3D11DepthStencilView* g_pDepthStencilView = nullptr;
 static D3D11_TEXTURE2D_DESC g_BackBufferDesc{};
 static D3D11_VIEWPORT g_Viewport{}; // ビューポート設定用
 
-static bool configureBackBuffer(); // バックバッファの設定・生成
-static void releaseBackBuffer(); // バックバッファの解放
+static bool configureBackBuffer(); // バックバッファ設定・生成
+static void releaseBackBuffer(); // バックバッファ解放
 
 //オフスクリーンレンダリング関連
 static ID3D11Texture2D* g_pOffscreenBuffer = nullptr;
@@ -47,10 +47,10 @@ static ID3D11DepthStencilView* g_pOffscreenDepthStencilView = nullptr;
 static D3D11_TEXTURE2D_DESC g_OffscreenDesc{};
 static D3D11_VIEWPORT g_OffscreenViewport{}; // ビューポート設定用
 
-static bool configureOffscreenBuffer(); // オフスクリーンバックバッファの設定・生成
-static void releaseOffscreenBuffer(); // オフスクリーンバックバッファの解放
+static bool configureOffscreenBuffer(); // オフスクリーンバッファ設定・生成
+static void releaseOffscreenBuffer(); // オフスクリーンバッファ解放
 
-//深度情報レンダリング関連
+//深度バッファレンダリング関連
 static ID3D11Texture2D* g_pDepthBuffer = nullptr;
 static ID3D11RenderTargetView* g_pDepthRenderTargetView = nullptr;
 static ID3D11ShaderResourceView* g_pDepthShaderResourceView = nullptr;
@@ -59,8 +59,8 @@ static ID3D11DepthStencilView* g_pDepthDepthStencilView = nullptr;
 static D3D11_TEXTURE2D_DESC g_DepthDesc{};
 static D3D11_VIEWPORT g_DepthViewport{}; // ビューポート設定用
 
-static bool configureDepthBuffer(); // オフスクリーンバックバッファの設定・生成
-static void releaseDepthBuffer(); // オフスクリーンバックバッファの解放
+static bool configureDepthBuffer(); // 深度バッファ設定・生成
+static void releaseDepthBuffer(); // 深度バッファ解放
 
 bool Direct3D_Initialize(HWND hWnd)
 {
@@ -70,7 +70,7 @@ bool Direct3D_Initialize(HWND hWnd)
     swap_chain_desc.BufferCount = 2;
     // swap_chain_desc.BufferDesc.Width = 0;
     // swap_chain_desc.BufferDesc.Height = 0;
-	// ⇒ ウィンドウサイズに合わせて自動的に設定される
+	// ※ ウィンドウサイズから自動的に決定される
     swap_chain_desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swap_chain_desc.SampleDesc.Count = 1;
@@ -86,8 +86,8 @@ bool Direct3D_Initialize(HWND hWnd)
 	pFactory->EnumAdapters1(1, &pAdapter); // セカンダリアダプタを取得
 	pFactory->Release();
 	DXGI_ADAPTER_DESC1 desc;
-	pAdapter->GetDesc1(&desc); // アダプタの情報を取得して確認したい場合
-	pAdapter->Release(); // D3D11CreateDeviceAndSwapChain()の第１引数に渡して利用し終わったら解放する
+	pAdapter->GetDesc1(&desc); // アダプタ情報を取得して確認する
+	pAdapter->Release(); // D3D11CreateDeviceAndSwapChain()に渡して使用することも可能
 	*/
 
 	UINT device_flags = 0;
@@ -127,25 +127,25 @@ bool Direct3D_Initialize(HWND hWnd)
 		return false;
 	}
 
-	//オフスクリーン関連のリソース作成
+	//オフスクリーン用リソース生成
 	configureOffscreenBuffer();
 
-	//深度バッファ関連のリソース作成
+	//深度バッファ用リソース生成
 	configureDepthBuffer();
 
 	// αブレンド
-	// RGBA A … 好きに使って良い値。基本は透明の表現に使う
+	// RGBA A … 不透明度を表す値。半透明の表現に使う
 	// αテスト、αブレンド
 
-	// ブレンドステート設定
+	// ブレンドステート作成
 	D3D11_BLEND_DESC bd{};
 	bd.AlphaToCoverageEnable = FALSE;
 	bd.IndependentBlendEnable = FALSE;
 	bd.RenderTarget[0].BlendEnable = TRUE; // αブレンドするしない
 
-	/*********** 透過ブレンドの設定 **********/
+	/*********** 半透明ブレンド設定 **********/
 
-	// src … ソース（今から描く絵（色）） dest … すでに描かれた絵（色）
+	// src … ソース（今から描く絵（色）） dest … すでに描いた絵（色）
 
 	// RGB
 	bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
@@ -165,7 +165,7 @@ bool Direct3D_Initialize(HWND hWnd)
 
 	/*****************************************/
 
-	/*********** 加算ブレンドの設定 **********/
+	/*********** 加算ブレンド設定 **********/
 	bd.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
 	// SrcRGB * SrcA + DestRGB * 1
 	// SrcA * 1 + DestA * 0
@@ -174,13 +174,13 @@ bool Direct3D_Initialize(HWND hWnd)
 
 	/**************************************/
 
-	Direct3D_SetAlphaBlendTransparent(); // デフォルトのブレンドステート
+	Direct3D_SetAlphaBlendTransparent(); // デフォルトブレンドステート
 
-	// 深度ステンシルステート設定
+	// 深度ステンシルステート作成
 	D3D11_DEPTH_STENCIL_DESC dsd{};
 	dsd.DepthFunc = D3D11_COMPARISON_LESS;
 	dsd.StencilEnable = FALSE;
-	dsd.DepthEnable = FALSE; // 無効にする
+	dsd.DepthEnable = FALSE; // 深度無効
 	dsd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
 
 	g_pDevice->CreateDepthStencilState(&dsd, &g_pDepthStencilStateDepthDisable);
@@ -196,7 +196,7 @@ bool Direct3D_Initialize(HWND hWnd)
 
 	Direct3D_SetDepthEnable(true);
 	/*
-	// ラスタライザステートの作成
+	// ラスタライザステート作成
 	D3D11_RASTERIZER_DESC rd = {};
 	rd.FillMode = D3D11_FILL_SOLID;
 	// rd.FillMode = D3D11_FILL_WIREFRAME;
@@ -230,8 +230,8 @@ void Direct3D_Finalize()
 
 void Direct3D_Present()
 {
-	// スワップチェーンの表示
-	g_pSwapChain->Present(1, 0); // ベンチマークを取るときは第１引数を0に
+	// スワップチェーン表示
+	g_pSwapChain->Present(1, 0); // 垂直同期マーク到達まで待つ 1=待つ 0=待たない
 }
 
 unsigned int Direct3D_GetBackBufferWidth()
@@ -300,7 +300,7 @@ DirectX::XMFLOAT3 Direct3D_ScreenToWorld(int x, int y, float depth, const Direct
 {
 	XMMATRIX xview{ XMLoadFloat4x4(&view) };
 	XMMATRIX xproj{ XMLoadFloat4x4(&projection) };
-	XMVECTOR xpoint{ x, y, depth, 1.0f };
+	XMVECTOR xpoint{ static_cast<float>(x), static_cast<float>(y), depth, 1.0f };
 
 	XMMATRIX inv{ XMMatrixInverse(nullptr, xview * xproj * Direct3D_MatrixViewport())};
 
@@ -337,9 +337,9 @@ void Direct3D_ClearBackBuffer()
 
 void Direct3D_SetBackBuffer()
 {
-	g_pDeviceContext->RSSetViewports(1, &g_Viewport); // ビューポートの設定
+	g_pDeviceContext->RSSetViewports(1, &g_Viewport); // ビューポート設定
 
-	// レンダーターゲットビューとデプスステンシルビューの設定
+	// レンダーターゲットビューとデプスステンシルビューを設定
 	g_pDeviceContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 	
 }
@@ -354,9 +354,9 @@ void Direct3D_ClearOffscreen()
 
 void Direct3D_SetOffscreen()
 {
-	g_pDeviceContext->RSSetViewports(1, &g_OffscreenViewport); // ビューポートの設定
+	g_pDeviceContext->RSSetViewports(1, &g_OffscreenViewport); // ビューポート設定
 
-	// レンダーターゲットビューとデプスステンシルビューの設定
+	// レンダーターゲットビューとデプスステンシルビューを設定
 	g_pDeviceContext->OMSetRenderTargets(1, &g_pOffscreenRenderTargetView, g_pOffscreenDepthStencilView);
 }
 
@@ -375,9 +375,9 @@ void Direct3D_ClearDepth()
 
 void Direct3D_SetDepth()
 {
-	g_pDeviceContext->RSSetViewports(1, &g_DepthViewport); // ビューポートの設定
+	g_pDeviceContext->RSSetViewports(1, &g_DepthViewport); // ビューポート設定
 
-	// レンダーターゲットビューとデプスステンシルビューの設定
+	// レンダーターゲットビューとデプスステンシルビューを設定
 	g_pDeviceContext->OMSetRenderTargets(1, &g_pDepthRenderTargetView, g_pDepthDepthStencilView);
 }
 
@@ -393,7 +393,7 @@ bool configureBackBuffer()
 
     ID3D11Texture2D* back_buffer_pointer = nullptr;
 
-	// バックバッファの取得
+	// バックバッファを取得
 	hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&back_buffer_pointer);
 
     if (FAILED(hr)) {
@@ -401,21 +401,21 @@ bool configureBackBuffer()
         return false;
     }
 
-	// バックバッファのレンダーターゲットビューの生成
+	// バックバッファからレンダーターゲットビューを作成
 	hr = g_pDevice->CreateRenderTargetView(back_buffer_pointer, nullptr, &g_pRenderTargetView);
 
     if (FAILED(hr)) {
         back_buffer_pointer->Release();
-        hal::dout << "バックバッファのレンダーターゲットビューの生成に失敗しました" << std::endl;
+        hal::dout << "バックバッファのレンダーターゲットビューの作成に失敗しました" << std::endl;
         return false;
     }
 
-	// バックバッファの状態（情報）を取得
+	// バックバッファ情報（横幅等）を取得
     back_buffer_pointer->GetDesc(&g_BackBufferDesc);
 
-	back_buffer_pointer->Release(); // バックバッファのポインタは不要なので解放
+	back_buffer_pointer->Release(); // バックバッファポインタは不要なので解放
 
-	// デプスステンシルバッファの生成
+	// デプスステンシルバッファを作成
 	D3D11_TEXTURE2D_DESC depth_stencil_desc{};
 	depth_stencil_desc.Width = g_BackBufferDesc.Width;
 	depth_stencil_desc.Height = g_BackBufferDesc.Height;
@@ -431,11 +431,11 @@ bool configureBackBuffer()
 	hr = g_pDevice->CreateTexture2D(&depth_stencil_desc, nullptr, &g_pDepthStencilBuffer);
 
 	if (FAILED(hr)) {
-		hal::dout << "デプスステンシルバッファの生成に失敗しました" << std::endl;
+		hal::dout << "デプスステンシルバッファの作成に失敗しました" << std::endl;
 		return false;
 	}
 
-	// デプスステンシルビューの生成
+	// デプスステンシルビューを作成
 	D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc{};
 	depth_stencil_view_desc.Format = depth_stencil_desc.Format;
 	depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
@@ -444,11 +444,11 @@ bool configureBackBuffer()
 	hr = g_pDevice->CreateDepthStencilView(g_pDepthStencilBuffer, &depth_stencil_view_desc, &g_pDepthStencilView);
 
 	if (FAILED(hr)) {
-		hal::dout << "デプスステンシルビューの生成に失敗しました" << std::endl;
+		hal::dout << "デプスステンシルビューの作成に失敗しました" << std::endl;
 		return false;
 	}
 
-	// ビューポートの設定
+	// ビューポート設定
 	g_Viewport.TopLeftX = 0.0f;
 	g_Viewport.TopLeftY = 0.0f;
 	g_Viewport.Width = static_cast<FLOAT>(g_BackBufferDesc.Width);
@@ -456,7 +456,7 @@ bool configureBackBuffer()
 	g_Viewport.MinDepth = 0.0f;
 	g_Viewport.MaxDepth = 1.0f;
 
-	//g_pDeviceContext->RSSetViewports(1, &g_Viewport); // ビューポートの設定
+	//g_pDeviceContext->RSSetViewports(1, &g_Viewport); // ビューポート設定
 
     return true;
 }
@@ -495,7 +495,7 @@ bool configureOffscreenBuffer()
 	g_pDevice->CreateRenderTargetView(g_pOffscreenBuffer, nullptr, &g_pOffscreenRenderTargetView);
 	g_pDevice->CreateShaderResourceView(g_pOffscreenBuffer, nullptr, &g_pOffscreenShaderResourceView);
 	
-	// デプスステンシルバッファの生成
+	// デプスステンシルバッファを作成
 	D3D11_TEXTURE2D_DESC depth_stencil_desc{};
 	depth_stencil_desc.Width = g_OffscreenDesc.Width;
 	depth_stencil_desc.Height = g_OffscreenDesc.Height;
@@ -511,7 +511,7 @@ bool configureOffscreenBuffer()
 	g_pDevice->CreateTexture2D(&depth_stencil_desc, nullptr, &g_pOffscreenDepthStencilBuffer);
 
 
-	// デプスステンシルビューの生成
+	// デプスステンシルビューを作成
 	D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc{};
 	depth_stencil_view_desc.Format = depth_stencil_desc.Format;
 	depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
@@ -519,7 +519,7 @@ bool configureOffscreenBuffer()
 	depth_stencil_view_desc.Flags = 0;
 	g_pDevice->CreateDepthStencilView(g_pOffscreenDepthStencilBuffer, &depth_stencil_view_desc, &g_pOffscreenDepthStencilView);
 
-	// ビューポートの設定
+	// ビューポート設定
 	g_OffscreenViewport.TopLeftX = 0.0f;
 	g_OffscreenViewport.TopLeftY = 0.0f;
 	g_OffscreenViewport.Width = static_cast<FLOAT>(g_OffscreenDesc.Width);
@@ -527,7 +527,7 @@ bool configureOffscreenBuffer()
 	g_OffscreenViewport.MinDepth = 0.0f;
 	g_OffscreenViewport.MaxDepth = 1.0f;
 
-	//g_pDeviceContext->RSSetViewports(1, &g_OffscreenViewport); // ビューポートの設定
+	//g_pDeviceContext->RSSetViewports(1, &g_OffscreenViewport); // ビューポート設定
 
 	return true;
 }
@@ -559,7 +559,7 @@ bool configureDepthBuffer()
 	g_pDevice->CreateRenderTargetView(g_pDepthBuffer, nullptr, &g_pDepthRenderTargetView);
 	g_pDevice->CreateShaderResourceView(g_pDepthBuffer, nullptr, &g_pDepthShaderResourceView);
 
-	// デプスステンシルバッファの生成
+	// デプスステンシルバッファを作成
 	D3D11_TEXTURE2D_DESC depth_stencil_desc{};
 	depth_stencil_desc.Width = g_DepthDesc.Width;
 	depth_stencil_desc.Height = g_DepthDesc.Height;
@@ -575,7 +575,7 @@ bool configureDepthBuffer()
 	g_pDevice->CreateTexture2D(&depth_stencil_desc, nullptr, &g_pDepthDepthStencilBuffer);
 
 
-	// デプスステンシルビューの生成
+	// デプスステンシルビューを作成
 	D3D11_DEPTH_STENCIL_VIEW_DESC depth_stencil_view_desc{};
 	depth_stencil_view_desc.Format = depth_stencil_desc.Format;
 	depth_stencil_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
@@ -583,7 +583,7 @@ bool configureDepthBuffer()
 	depth_stencil_view_desc.Flags = 0;
 	g_pDevice->CreateDepthStencilView(g_pDepthDepthStencilBuffer, &depth_stencil_view_desc, &g_pDepthDepthStencilView);
 
-	// ビューポートの設定
+	// ビューポート設定
 	g_DepthViewport.TopLeftX = 0.0f;
 	g_DepthViewport.TopLeftY = 0.0f;
 	g_DepthViewport.Width = static_cast<FLOAT>(g_DepthDesc.Width);

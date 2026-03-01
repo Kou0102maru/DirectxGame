@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   プレイヤー制御 [player.cpp]
+   プレイヤー処理 [player.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/10/31
 --------------------------------------------------------------------------------
@@ -28,6 +28,24 @@ static bool g_IsJump = false;
 static constexpr double SHOT_INTERVAL = 0.25;
 static double g_Rapid_Time = 0.0;
 
+static int g_PlayerHp = 100;
+static int g_PlayerHpMax = 100;
+static int g_PlayerLevel = 1;
+static int g_PlayerAtk = 10;
+static int g_PlayerDef = 5;
+static int g_PlayerExp = 0;
+static int g_PlayerExpNext = 10;
+
+static void Player_LevelUp()
+{
+	g_PlayerLevel++;
+	g_PlayerHpMax += 10;
+	g_PlayerAtk += 2;
+	g_PlayerDef += 1;
+	g_PlayerExpNext = g_PlayerLevel * g_PlayerLevel * 10;
+	g_PlayerHp = g_PlayerHpMax;
+}
+
 
 void Player_Initialize(const XMFLOAT3& position, const XMFLOAT3& front)
 {
@@ -35,10 +53,11 @@ void Player_Initialize(const XMFLOAT3& position, const XMFLOAT3& front)
 	g_PlayerVelocity = { 0.0f, 0.0f, 0.0f };
 	XMStoreFloat3(&g_PlayerFront, XMVector3Normalize(XMLoadFloat3(&front)));
 	g_IsJump = false;
+	g_PlayerHp = g_PlayerHpMax;
 
 	g_pPlayerModel = ModelLoad("resource/model/slime.fbx", 0.8f);
 
-	
+
 }
 
 void Player_Finalize()
@@ -48,7 +67,7 @@ void Player_Finalize()
 
 void Player_Update(double elapsed_time)
 {
-	// 前のフレームで保存したプレイヤーの座標と移動エネルギーを演算できる形にする
+	// 前フレームの速度からプレイヤー座標とエネルギーを計算
 	XMVECTOR position = XMLoadFloat3(&g_PlayerPosition);
 	XMVECTOR velocity = XMLoadFloat3(&g_PlayerVelocity);
 
@@ -58,22 +77,22 @@ void Player_Update(double elapsed_time)
 		g_IsJump = true;
 	}
 
-	// 重力にひかれて落っこちる
+	// 重力適用
 	XMVECTOR gdir{ 0.0f, 1.0f, 0.0f };
 	velocity += gdir * -9.8f * 10.0f * (float)elapsed_time;
 	position += velocity * (float)elapsed_time;
-	
-	// 重力に引かれたあとのプレイヤーとマップオブジェクトとの当たり判定
+
+	// 重力適用後プレイヤーとマップオブジェクトの衝突判定
 	for (int i = 0; i < Map_GetObjectsCount(); i++) {
 
 		AABB player = Player_ConvertPositionToAABB(position);
 
-		// ここがオブジェクトによって変わるはず
-		AABB object = Map_GetObject(i)->Aabb; 
+		// 各オブジェクトと衝突判定
+		AABB object = Map_GetObject(i)->Aabb;
 		Hit hit = Collision_IsHitAABB(object, player);
 
 		if (hit.isHit) {
-			if (hit.noraml.y > 0.0f) { // 上にたぶんのっかった
+			if (hit.noraml.y > 0.0f) { // 上面に着地
 				position = XMVectorSetY(position, object.max.y);
 				velocity *= { 1.0f, 0.0f, 1.0f };
 				g_IsJump = false;
@@ -108,8 +127,8 @@ void Player_Update(double elapsed_time)
 
 	if (XMVectorGetX(XMVector3LengthSq(direction)) > 0.0f) {
 		direction = XMVector3Normalize(direction);
-		
-		// ２つのベクトルのなす角は
+
+		// 2ベクトル間の角度
 		float dot = XMVectorGetX(XMVector3Dot(XMLoadFloat3(&g_PlayerFront), direction));
 		float angle = acosf(dot);
 
@@ -120,7 +139,7 @@ void Player_Update(double elapsed_time)
 			front = direction;
 		}
 		else {
-			// 向きたい方向が右回りか左回りか
+			// 左右どちらに回転するか判定
 			XMMATRIX r = XMMatrixIdentity();
 
 			if (XMVectorGetY(XMVector3Cross(XMLoadFloat3(&g_PlayerFront), direction)) < 0.0f) {
@@ -137,15 +156,15 @@ void Player_Update(double elapsed_time)
 		XMStoreFloat3(&g_PlayerFront, front);
 	}
 
-	velocity += -velocity * (float)(10.0 * elapsed_time); // 抵抗
+	velocity += -velocity * (float)(10.0 * elapsed_time); // 摩擦
 	position += velocity * (float)elapsed_time;
 
-	// 移動したあとのプレイヤーとマップオブジェクトとの当たり判定
+	// 移動後プレイヤーとマップオブジェクトの衝突判定
 	for (int i = 0; i < Map_GetObjectsCount(); i++) {
 
 		AABB player = Player_ConvertPositionToAABB(position);
 
-		// ここがオブジェクトによって変わるはず
+		// 各オブジェクトと衝突判定
 		AABB object = Map_GetObject(i)->Aabb;
 		Hit hit = Collision_IsHitAABB(object, player);
 
@@ -176,10 +195,11 @@ void Player_Update(double elapsed_time)
 	XMStoreFloat3(&g_PlayerPosition, position);
 	XMStoreFloat3(&g_PlayerVelocity, velocity);
 
+	/* フィールド弾の発射処理
 	if (KeyLogger_IsPressed(KK_SPACE) || PadLogger_GetRightTrigger(0) > 0.8f) {
 		if (g_Rapid_Time <= 0.0) {
 			XMFLOAT3 shot_position = g_PlayerPosition;
-			shot_position.y += 1.0f; // 一応右手のあたりから
+			shot_position.y += 1.0f;
 			shot_position.x += 1.0f;
 			XMFLOAT3 shot_velocity;
 			XMStoreFloat3(&shot_velocity, XMLoadFloat3(&g_PlayerFront) * 20.0f);
@@ -193,6 +213,7 @@ void Player_Update(double elapsed_time)
 	else {
 		g_Rapid_Time = 0.0;
 	}
+	*/
 
 }
 
@@ -256,4 +277,54 @@ AABB Player_ConvertPositionToAABB(const DirectX::XMVECTOR& position)
 void Player_SetPosition(const DirectX::XMFLOAT3& position)
 {
 	g_PlayerPosition = position;
+}
+
+int Player_GetHp()
+{
+	return g_PlayerHp;
+}
+
+int Player_GetHpMax()
+{
+	return g_PlayerHpMax;
+}
+
+void Player_TakeDamage(int damage)
+{
+	g_PlayerHp -= damage;
+	if (g_PlayerHp < 0) g_PlayerHp = 0;
+}
+
+int Player_GetLevel()
+{
+	return g_PlayerLevel;
+}
+
+int Player_GetAtk()
+{
+	return g_PlayerAtk;
+}
+
+int Player_GetDef()
+{
+	return g_PlayerDef;
+}
+
+int Player_GetExp()
+{
+	return g_PlayerExp;
+}
+
+int Player_GetExpNext()
+{
+	return g_PlayerExpNext;
+}
+
+void Player_GainExp(int exp)
+{
+	g_PlayerExp += exp;
+	while (g_PlayerExp >= g_PlayerExpNext) {
+		g_PlayerExp = 0;  // レベルアップ時に累積経験値を0にリセット
+		Player_LevelUp();
+	}
 }
