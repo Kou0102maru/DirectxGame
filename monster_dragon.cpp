@@ -155,7 +155,7 @@ void MonsterDragon::StateDive::Draw() const
     XMMATRIX world = rotY * trans;
 
     if (g_pDragonFieldModel) {
-        ModelDraw(g_pDragonFieldModel, world, { 1.0f, 1.0f, 0.0f, 1.0f });
+        ModelDraw(g_pDragonFieldModel, world, { 0.0f, 0.0f, 1.0f, 1.0f });
     } else {
         Cube_Draw(g_MonsterTexDragon, trans);
     }

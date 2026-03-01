@@ -50,6 +50,9 @@ static bool g_ShowStatus = false;
 static hal::DebugText* g_pStatusText = nullptr;
 static int g_StatusWhiteTex = -1;
 
+// フィールドHUD（戦闘キャラ名表示）
+static hal::DebugText* g_pFighterHudText = nullptr;
+
 //=============================================================================
 // 距離ベース敵出現システム（ドラゴン除外）
 //=============================================================================
@@ -69,25 +72,53 @@ struct SpawnPoint {
     XMFLOAT3    position;    // 固定出現位置
     SpawnState  state;       // 現在の状態
     Monster*    pMonster;    // 出現中のモンスターポインタ
+    bool        is_boss;     // ボスフラグ
 };
 
-static constexpr int SPAWN_POINT_COUNT = 9;  // スライム5 + オオカミ4
-static SpawnPoint g_SpawnPoints[SPAWN_POINT_COUNT];
+static constexpr int SPAWN_POINT_MAX = 9;
+static SpawnPoint g_SpawnPoints[SPAWN_POINT_MAX];
+static int g_SpawnPointCount = 0;
 
-// 出現ポイントの初期化
+// 現在のステージ番号（1 or 2）
+static int g_CurrentStage = 1;
+
+// 出現ポイントの初期化（ステージ別）
 static void InitSpawnPoints()
 {
-    // スライム × 5（序盤?中盤に配置）
-    g_SpawnPoints[0] = { MONSTER_KIND_SPIDER, 1, {  8.0f, 0.5f,  8.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[1] = { MONSTER_KIND_SPIDER, 1, {-15.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[2] = { MONSTER_KIND_SPIDER, 2, { 20.0f, 0.5f, 25.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[3] = { MONSTER_KIND_SPIDER, 1, {-30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[4] = { MONSTER_KIND_SPIDER, 2, { 35.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr };
-    // オオカミ × 4（中盤?奥に配置）
-    g_SpawnPoints[5] = { MONSTER_KIND_WOLF,  3, {-25.0f, 0.5f, 10.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[6] = { MONSTER_KIND_WOLF,  3, { 30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[7] = { MONSTER_KIND_WOLF,  4, {-10.0f, 0.5f, 35.0f }, SPAWN_READY, nullptr };
-    g_SpawnPoints[8] = { MONSTER_KIND_WOLF,  4, { 15.0f, 0.5f, 40.0f }, SPAWN_READY, nullptr };
+    g_SpawnPointCount = SPAWN_POINT_MAX;
+
+    if (g_CurrentStage == 1) {
+        // ステージ1: クモ + オオカミ、ボス = 目玉 Lv7
+        // クモ × 4 (Lv1-3)
+        g_SpawnPoints[0] = { MONSTER_KIND_SPIDER, 1, {  8.0f, 0.5f,  8.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[1] = { MONSTER_KIND_SPIDER, 1, {-15.0f, 0.5f, 15.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[2] = { MONSTER_KIND_SPIDER, 2, { 20.0f, 0.5f, 25.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[3] = { MONSTER_KIND_SPIDER, 3, {-30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr, false };
+        // オオカミ × 3 (Lv2-4)
+        g_SpawnPoints[4] = { MONSTER_KIND_WOLF,  2, {-25.0f, 0.5f, 10.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[5] = { MONSTER_KIND_WOLF,  3, { 30.0f, 0.5f, 30.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[6] = { MONSTER_KIND_WOLF,  4, {-10.0f, 0.5f, 35.0f }, SPAWN_READY, nullptr, false };
+        // 通常目玉 × 1 (Lv2)
+        g_SpawnPoints[7] = { MONSTER_KIND_EYEBALL, 2, { 10.0f, 2.5f, 30.0f }, SPAWN_READY, nullptr, false };
+        // ボス目玉 × 1 (Lv7)
+        g_SpawnPoints[8] = { MONSTER_KIND_EYEBALL, 7, {  0.0f, 2.5f, 45.0f }, SPAWN_READY, nullptr, true };
+    }
+    else {
+        // ステージ2: 目玉 + ロボット、ボス = ドラゴン Lv15
+        // 目玉 × 3 (Lv4-6)
+        g_SpawnPoints[0] = { MONSTER_KIND_EYEBALL, 4, {  8.0f, 2.5f,  8.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[1] = { MONSTER_KIND_EYEBALL, 5, {-15.0f, 2.5f, 15.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[2] = { MONSTER_KIND_EYEBALL, 6, { 20.0f, 2.5f, 25.0f }, SPAWN_READY, nullptr, false };
+        // ロボット × 4 (Lv5-7)
+        g_SpawnPoints[3] = { MONSTER_KIND_ROBOT,  5, {-25.0f, 1.5f, 10.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[4] = { MONSTER_KIND_ROBOT,  5, { 30.0f, 1.5f, 30.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[5] = { MONSTER_KIND_ROBOT,  6, {-10.0f, 1.5f, 35.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[6] = { MONSTER_KIND_ROBOT,  7, { 15.0f, 1.5f, 20.0f }, SPAWN_READY, nullptr, false };
+        // 通常ロボット × 1 (Lv6)
+        g_SpawnPoints[7] = { MONSTER_KIND_ROBOT,  6, {-35.0f, 1.5f, 20.0f }, SPAWN_READY, nullptr, false };
+        // ボスドラゴン × 1 (Lv15)
+        g_SpawnPoints[8] = { MONSTER_KIND_DRAGON, 15, {  0.0f, 3.0f, 45.0f }, SPAWN_READY, nullptr, true };
+    }
 }
 
 // 出現ポイントにモンスターを生成
@@ -101,6 +132,15 @@ static Monster* SpawnAtPoint(MonsterKind kind, int level, const XMFLOAT3& pos)
         break;
     case MONSTER_KIND_WOLF:
         Monster_CreateWolf(pos, level);
+        break;
+    case MONSTER_KIND_ROBOT:
+        Monster_CreateRobot(pos, level);
+        break;
+    case MONSTER_KIND_EYEBALL:
+        Monster_CreateEyeball(pos, level);
+        break;
+    case MONSTER_KIND_DRAGON:
+        Monster_CreateDragon(pos, level);
         break;
     default:
         return nullptr;
@@ -125,7 +165,7 @@ static void UpdateSpawnSystem()
 {
     XMFLOAT3 player_pos = Player_GetPosition();
 
-    for (int i = 0; i < SPAWN_POINT_COUNT; i++) {
+    for (int i = 0; i < g_SpawnPointCount; i++) {
         SpawnPoint& sp = g_SpawnPoints[i];
         float dist = CalcDistanceXZ(player_pos, sp.position);
 
@@ -175,6 +215,7 @@ void Game_Initialize()
 		Player_Initialize(g_PlayerSavePosition, { 0.0f, 0.0f, 1.0f });
 	}
 	else {
+		g_CurrentStage = 1;
 		Player_Initialize({ 0.0f, 0.5f, 5.0f }, { 0.0f, 0.0f, 1.0f });
 		Party_Initialize();  // パーティは初回のみ初期化（戦闘復帰時は保持）
 	}
@@ -197,11 +238,8 @@ void Game_Initialize()
 	//Enemy_Create({-3.0f, 1.0f, 5.0f});
 	//Enemy_Create({ 8.0f, 3.0f, 20.0f });
 
-	// 距離ベース出現ポイント初期化（通常敵はプレイヤー接近時に出現）
+	// 距離ベース出現ポイント初期化（ステージに応じてモンスター配置）
 	InitSpawnPoints();
-
-	// ドラゴン（ラスボス）をマップ最奥に固定配置（距離出現の対象外）
-	Monster_CreateDragon({ 0.0f, 3.0f, 45.0f }, 5);
 
 	//g_TestTex01 = Texture_Load(L"resource/texture/knight.png");
 	//g_BillboardTex = Texture_Load(L"resource/texture/knight.png");
@@ -225,6 +263,16 @@ void Game_Initialize()
 			sw * 0.5f - 130.0f, sh * 0.5f - 140.0f,
 			18, 0, 20.0f, 12.0f
 		);
+
+		// フィールドHUD（画面上部に戦闘キャラ名）
+		delete g_pFighterHudText;
+		g_pFighterHudText = new hal::DebugText(
+			Direct3D_GetDevice(), Direct3D_GetContext(),
+			L"resource/texture/consolab_ascii_512.png",
+			(UINT)sw, (UINT)sh,
+			10.0f, 10.0f,
+			1, 0, 18.0f, 10.0f
+		);
 	}
 }
 
@@ -236,6 +284,8 @@ void Game_Finalize()
 
 	delete g_pStatusText;
 	g_pStatusText = nullptr;
+	delete g_pFighterHudText;
+	g_pFighterHudText = nullptr;
 
 	CircleShadow_Finalize();
 	Trajectory3d_Finalize();
@@ -253,9 +303,37 @@ void Game_Finalize()
 
 void Game_Update(double elapsed_time)
 {
+	// バトル復帰後のボス撃破チェック
+	extern bool g_BossDefeated;
+	if (g_BossDefeated) {
+		g_BossDefeated = false;
+		if (g_CurrentStage == 1) {
+			// ステージ1ボス撃破 → ステージ2へ
+			g_CurrentStage = 2;
+			// 全モンスター削除してステージ2のスポーン再初期化
+			Monster_Finalize();
+			Monster_Initialize();
+			InitSpawnPoints();
+			// プレイヤー位置リセット・HP全回復
+			Player_SetPosition({ 0.0f, 0.5f, 5.0f });
+			Player_TakeDamage(-(Player_GetHpMax() - Player_GetHp()));
+			return;
+		}
+		else {
+			// ステージ2ボス撃破 → ゲームクリア
+			Scene_Change(SCENE_GAMECLEAR);
+			return;
+		}
+	}
+
 	// Mキー：ステータス画面のトグル（ポーズ中でも受け付ける）
 	if (KeyLogger_IsTrigger(KK_M)) {
 		g_ShowStatus = !g_ShowStatus;
+	}
+
+	// Tabキー：戦闘キャラ切替
+	if (KeyLogger_IsTrigger(KK_TAB)) {
+		Party_CycleActiveFighter();
 	}
 
 	// ステータス画面表示中はゲーム停止
@@ -275,6 +353,15 @@ void Game_Update(double elapsed_time)
 		float distance = XMVectorGetX(XMVector3Length(to_monster));
 
 		if (distance < 2.0f) {
+			// スポーンポイントからボスフラグを取得
+			bool is_boss = false;
+			for (int j = 0; j < g_SpawnPointCount; j++) {
+				if (g_SpawnPoints[j].pMonster == monster) {
+					is_boss = g_SpawnPoints[j].is_boss;
+					break;
+				}
+			}
+			Battle_SetBossFlag(is_boss);
 			Battle_SetEnemy(monster);
 			Scene_Change(SCENE_BATTLE);
 			return;
@@ -497,6 +584,16 @@ void Game_Draw()
 		}
 	}
 
+	// フィールドHUD: 現在の戦闘キャラ名を画面左上に表示
+	if (g_pFighterHudText) {
+		g_pFighterHudText->Clear();
+		char hbuf[64];
+		snprintf(hbuf, sizeof(hbuf), "Fighter: %s Lv.%d  [Tab]",
+			Party_GetFighterName(), Party_GetFighterLevel());
+		g_pFighterHudText->SetText(hbuf, { 1.0f, 1.0f, 1.0f, 1.0f });
+		g_pFighterHudText->Draw();
+	}
+
 	Direct3D_SetDepthEnable(true);
 
 	// デバッグカメラの描画
@@ -571,5 +668,10 @@ void lightRendering()
 	//Enemy_DepthDraw();
 	//Player_DepthDraw();
 	//Map_Draw();
+}
+
+int Game_GetStage()
+{
+	return g_CurrentStage;
 }
 

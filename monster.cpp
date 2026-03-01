@@ -10,6 +10,8 @@
 #include "monster_spider.h"
 #include "monster_wolf.h"
 #include "monster_dragon.h"
+#include "monster_robot.h"
+#include "monster_eyeball.h"
 #include "model.h"
 #include "texture.h"
 #include "cube.h"
@@ -24,6 +26,8 @@ using namespace DirectX;
 int g_MonsterTexSpider = -1;
 int g_MonsterTexWolf = -1;
 int g_MonsterTexDragon = -1;
+int g_MonsterTexRobot = -1;
+int g_MonsterTexEyeball = -1;
 
 //=============================================================================
 // 種別パラメータテーブル
@@ -34,6 +38,8 @@ static const MonsterBaseParam g_MonsterBaseParams[MONSTER_KIND_MAX] =
     { MONSTER_KIND_SPIDER,  "クモ",      20,  10,   5,   3,   4,  10, { SKILL_ATTACK, SKILL_NONE,   SKILL_NONE, SKILL_NONE } },
     { MONSTER_KIND_WOLF,   "オオカミ",  50,  10,  15,   8,  12,  35, { SKILL_ATTACK, SKILL_NONE,   SKILL_NONE, SKILL_NONE } },
     { MONSTER_KIND_DRAGON, "ドラゴン", 120,  50,  30,  20,  10, 100, { SKILL_ATTACK, SKILL_FIRE,   SKILL_NONE, SKILL_NONE } },
+    { MONSTER_KIND_ROBOT,   "ロボット",  80,  20,  20,  15,   6,  50, { SKILL_ATTACK, SKILL_NONE,   SKILL_NONE, SKILL_NONE } },
+    { MONSTER_KIND_EYEBALL, "目玉",      35,  30,  12,   5,   8,  25, { SKILL_ATTACK, SKILL_NONE,   SKILL_NONE, SKILL_NONE } },
 };
 
 //=============================================================================
@@ -348,6 +354,22 @@ void Monster_CreateDragon(const XMFLOAT3& position, int level)
     if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
 
     g_pMonsters[g_MonsterCount] = new MonsterDragon(position, level);
+    g_MonsterCount++;
+}
+
+void Monster_CreateRobot(const XMFLOAT3& position, int level)
+{
+    if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
+
+    g_pMonsters[g_MonsterCount] = new MonsterRobot(position, level);
+    g_MonsterCount++;
+}
+
+void Monster_CreateEyeball(const XMFLOAT3& position, int level)
+{
+    if (g_MonsterCount >= MAX_FIELD_MONSTERS) return;
+
+    g_pMonsters[g_MonsterCount] = new MonsterEyeball(position, level);
     g_MonsterCount++;
 }
 

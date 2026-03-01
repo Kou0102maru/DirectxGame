@@ -9,7 +9,9 @@
 #include "scene.h"
 #include "title.h"
 #include "game.h"
-#include "battle.h"  // バトル追加
+#include "battle.h"
+#include "gameover.h"
+#include "gameclear.h"
 
 
 // static Scene g_Scene = SCENE_TITLE;
@@ -32,7 +34,12 @@ void Scene_Initialize()
 		Battle_Initialize();
 		break;
 	case SCENE_RESULT:
-		// リザルトシーン初期化処理
+		break;
+	case SCENE_GAMEOVER:
+		GameOver_Initialize();
+		break;
+	case SCENE_GAMECLEAR:
+		GameClear_Initialize();
 		break;
 	default:
 		break;
@@ -53,7 +60,12 @@ void Scene_Finalize()
 		Battle_Finalize();
 		break;
 	case SCENE_RESULT:
-		// リザルトシーン初期化処理
+		break;
+	case SCENE_GAMEOVER:
+		GameOver_Finalize();
+		break;
+	case SCENE_GAMECLEAR:
+		GameClear_Finalize();
 		break;
 	default:
 		break;
@@ -74,7 +86,12 @@ void Scene_Update(double elapsed_time)
 		Battle_Update(elapsed_time);
 		break;
 	case SCENE_RESULT:
-		// リザルトシーン初期化処理
+		break;
+	case SCENE_GAMEOVER:
+		GameOver_Update(elapsed_time);
+		break;
+	case SCENE_GAMECLEAR:
+		GameClear_Update(elapsed_time);
 		break;
 	default:
 		break;
@@ -95,7 +112,12 @@ void Scene_Draw()
 		Battle_Draw();
 		break;
 	case SCENE_RESULT:
-		// リザルトシーン初期化処理
+		break;
+	case SCENE_GAMEOVER:
+		GameOver_Draw();
+		break;
+	case SCENE_GAMECLEAR:
+		GameClear_Draw();
 		break;
 	default:
 		break;

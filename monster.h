@@ -22,6 +22,8 @@ enum MonsterKind
     MONSTER_KIND_SPIDER = 0,  // クモ
     MONSTER_KIND_WOLF,        // オオカミ
     MONSTER_KIND_DRAGON,      // ドラゴン
+    MONSTER_KIND_ROBOT,       // ロボット
+    MONSTER_KIND_EYEBALL,     // 目玉
     MONSTER_KIND_MAX
 };
 
@@ -180,6 +182,8 @@ void    Monster_Create(MonsterKind kind, const DirectX::XMFLOAT3& position, int 
 void    Monster_CreateSpider(const DirectX::XMFLOAT3& position, int level = 1);  // AI付きクモ生成
 void    Monster_CreateWolf(const DirectX::XMFLOAT3& position, int level = 1);    // AI付きオオカミ生成
 void    Monster_CreateDragon(const DirectX::XMFLOAT3& position, int level = 1);  // AI付きドラゴン生成
+void    Monster_CreateRobot(const DirectX::XMFLOAT3& position, int level = 1);   // AI付きロボット生成
+void    Monster_CreateEyeball(const DirectX::XMFLOAT3& position, int level = 1); // AI付き目玉生成
 int     Monster_GetCount();
 Monster* Monster_Get(int index);
 void Monster_Remove(Monster* monster);

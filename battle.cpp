@@ -96,14 +96,22 @@ static int g_WhiteTexture = -1;
 
 XMFLOAT3 g_PlayerSavePosition;
 
+// ボスフラグ
+static bool g_IsBossBattle = false;
+bool g_BossDefeated = false;
+
 // バトル用3Dモデル（一度ロードしたら保持）
 static MODEL* g_pBattleSpiderModel = nullptr;
 static MODEL* g_pBattleWolfModel   = nullptr;
 static MODEL* g_pBattleDragonModel = nullptr;
+static MODEL* g_pBattleRobotModel  = nullptr;
+static MODEL* g_pBattleEyeballModel = nullptr;
 // スケール定数（モデルサイズに合わせて調整可）
-static constexpr float SPIDER_MODEL_SCALE = 0.15f;
-static constexpr float WOLF_MODEL_SCALE   = 3.0f;
-static constexpr float DRAGON_MODEL_SCALE = 0.2f;
+static constexpr float SPIDER_MODEL_SCALE  = 0.15f;
+static constexpr float WOLF_MODEL_SCALE    = 3.0f;
+static constexpr float DRAGON_MODEL_SCALE  = 0.2f;
+static constexpr float ROBOT_MODEL_SCALE   = 0.3f;
+static constexpr float EYEBALL_MODEL_SCALE = 0.3f;
 
 // テキスト描画オブジェクト（HPバー上下表示用）
 static hal::DebugText* g_pPlayerHeaderText = nullptr;  // Lv + 名前
@@ -125,6 +133,8 @@ static int GetCaptureRate(MonsterKind kind)
 	case MONSTER_KIND_SPIDER:  return 30;
 	case MONSTER_KIND_WOLF:   return 20;
 	case MONSTER_KIND_DRAGON: return 0;   // ラスボスは仲間にならない
+	case MONSTER_KIND_ROBOT:  return 15;
+	case MONSTER_KIND_EYEBALL: return 25;
 	default:                  return 0;
 	}
 }
@@ -136,8 +146,16 @@ static const char* GetEnemyDisplayName(MonsterKind kind)
 	case MONSTER_KIND_SPIDER:  return "Spider";
 	case MONSTER_KIND_WOLF:   return "Wolf";
 	case MONSTER_KIND_DRAGON: return "Dragon";
+	case MONSTER_KIND_ROBOT:  return "Robot";
+	case MONSTER_KIND_EYEBALL: return "Eyeball";
 	default:                  return "???";
 	}
+}
+
+void Battle_SetBossFlag(bool is_boss)
+{
+	g_IsBossBattle = is_boss;
+	g_BossDefeated = false;
 }
 
 void Battle_SetEnemy(Monster* enemy)
@@ -172,6 +190,16 @@ void Battle_SetEnemy(Monster* enemy)
 	case MONSTER_KIND_DRAGON:
 		g_EnemyAttackInterval = 3.5;
 		g_EnemyBulletSpeed = 10.0f;
+		g_EnemyBurstCount = 1;
+		break;
+	case MONSTER_KIND_ROBOT:
+		g_EnemyAttackInterval = 1.8;
+		g_EnemyBulletSpeed = 9.0f;
+		g_EnemyBurstCount = 2;
+		break;
+	case MONSTER_KIND_EYEBALL:
+		g_EnemyAttackInterval = 1.5;
+		g_EnemyBulletSpeed = 7.0f;
 		g_EnemyBurstCount = 1;
 		break;
 	default:
@@ -216,9 +244,13 @@ void Battle_Initialize()
 	if (g_pBattleSpiderModel) { ModelRelease(g_pBattleSpiderModel); g_pBattleSpiderModel = nullptr; }
 	if (g_pBattleWolfModel) { ModelRelease(g_pBattleWolfModel); g_pBattleWolfModel = nullptr; }
 	if (g_pBattleDragonModel) { ModelRelease(g_pBattleDragonModel); g_pBattleDragonModel = nullptr; }
-	g_pBattleSpiderModel = ModelLoad("resource/model/sp.fbx", SPIDER_MODEL_SCALE, false);
-	g_pBattleWolfModel   = ModelLoad("resource/model/Wolf.fbx", WOLF_MODEL_SCALE, true);
-	g_pBattleDragonModel = ModelLoad("resource/model/Dragon.fbx", DRAGON_MODEL_SCALE, true);
+	if (g_pBattleRobotModel) { ModelRelease(g_pBattleRobotModel); g_pBattleRobotModel = nullptr; }
+	if (g_pBattleEyeballModel) { ModelRelease(g_pBattleEyeballModel); g_pBattleEyeballModel = nullptr; }
+	g_pBattleSpiderModel  = ModelLoad("resource/model/sp.fbx", SPIDER_MODEL_SCALE, false);
+	g_pBattleWolfModel    = ModelLoad("resource/model/Wolf.fbx", WOLF_MODEL_SCALE, true);
+	g_pBattleDragonModel  = ModelLoad("resource/model/Dragon.fbx", DRAGON_MODEL_SCALE, true);
+	g_pBattleRobotModel   = ModelLoad("resource/model/robot.fbx", ROBOT_MODEL_SCALE, true);
+	g_pBattleEyeballModel = ModelLoad("resource/model/eyeball.fbx", EYEBALL_MODEL_SCALE, true);
 
 	for (int i = 0; i < 10; i++) g_BattleBullets[i].active = false;
 	for (int i = 0; i < 5;  i++) g_EnemyBullets[i].active = false;
@@ -324,7 +356,11 @@ void Battle_Update(double elapsed_time)
 	if (g_BattlePhase == PHASE_WIN || g_BattlePhase == PHASE_LOSE) {
 		g_ResultTimer -= elapsed_time;
 		if (g_ResultTimer <= 0.0) {
-			Scene_Change(SCENE_GAME);
+			if (g_BattlePhase == PHASE_LOSE) {
+				Scene_Change(SCENE_GAMEOVER);
+			} else {
+				Scene_Change(SCENE_GAME);
+			}
 		}
 		return;
 	}
@@ -362,7 +398,7 @@ void Battle_Update(double elapsed_time)
 
 			// 当たり判定
 			if (g_EnemyHp > 0 && g_BattleBullets[i].x >= 1.5f && g_BattleBullets[i].x <= 2.5f) {
-				int dmg = Player_GetAtk() - g_EnemyDef / 2;
+				int dmg = Party_GetFighterAtk() - g_EnemyDef / 2;
 				if (dmg < 1) dmg = 1;
 				g_EnemyHp -= dmg;
 				if (g_EnemyHp < 0) g_EnemyHp = 0;
@@ -422,9 +458,9 @@ void Battle_Update(double elapsed_time)
 			}
 
 			if (g_EnemyBullets[i].x <= -1.5f && g_EnemyBullets[i].x >= -2.5f) {
-				int dmg = g_EnemyAtk - Player_GetDef() / 2;
+				int dmg = g_EnemyAtk - Party_GetFighterDef() / 2;
 				if (dmg < 1) dmg = 1;
-				Player_TakeDamage(dmg);
+				Party_FighterTakeDamage(dmg);
 				g_EnemyBullets[i].active = false;
 			}
 
@@ -439,8 +475,8 @@ void Battle_Update(double elapsed_time)
 		g_HitEffect->Update(elapsed_time);
 	}
 
-	// プレイヤー死亡 -> 敗北フェーズへ
-	if (Player_GetHp() <= 0) {
+	// 戦闘キャラ死亡 -> 敗北フェーズへ
+	if (Party_GetFighterHp() <= 0) {
 		// 残弾を全消去（リザルト表示を隠さないように）
 		for (int i = 0; i < 10; i++) g_BattleBullets[i].active = false;
 		for (int i = 0; i < 5;  i++) g_EnemyBullets[i].active = false;
@@ -452,7 +488,12 @@ void Battle_Update(double elapsed_time)
 	// モンスター撃破 -> 経験値付与・仲間判定・勝利フェーズへ
 	if (g_EnemyHp <= 0) {
 		g_LastExpReward = g_EnemyExpReward;
-		Player_GainExp(g_EnemyExpReward);
+		Party_FighterGainExp(g_EnemyExpReward);
+
+		// ボス撃破フラグ
+		if (g_IsBossBattle) {
+			g_BossDefeated = true;
+		}
 
 		// 仲間判定（ドラゴン以外、パーティ空きあり）
 		g_CapturedThisBattle = false;
@@ -502,9 +543,52 @@ void Battle_Draw()
 	extern int g_MonsterTexWolf;
 	extern int g_MonsterTexDragon;
 
-	// プレイヤー
-	XMMATRIX worldPlayer = XMMatrixTranslation(-2.0f, 0.0f, 5.0f);
-	Cube_Draw(g_MonsterTexSpider, worldPlayer);
+	// プレイヤー側（戦闘キャラ）の描画
+	{
+		MonsterKind fighterKind = Party_GetFighterKind();
+		if (fighterKind == MONSTER_KIND_MAX) {
+			// プレイヤー本人: 青キューブ
+			XMMATRIX worldPlayer = XMMatrixTranslation(-2.0f, 0.0f, 5.0f);
+			Cube_Draw(g_MonsterTexSpider, worldPlayer);
+		} else {
+			// パーティモンスター: 対応3Dモデル（敵と左右反転）
+			switch (fighterKind) {
+			case MONSTER_KIND_SPIDER:
+			{
+				XMMATRIX rot = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(XM_PIDIV2);
+				XMMATRIX trans = XMMatrixTranslation(-3.0f, -0.5f, 5.0f);
+				if (g_pBattleSpiderModel) ModelDraw(g_pBattleSpiderModel, rot * trans, { 0.1f, 0.1f, 0.1f, 1.0f });
+				break;
+			}
+			case MONSTER_KIND_WOLF:
+			{
+				XMMATRIX rot = XMMatrixRotationY(-XM_PIDIV2);
+				XMMATRIX trans = XMMatrixTranslation(-2.0f, -1.0f, 5.0f);
+				if (g_pBattleWolfModel) ModelDraw(g_pBattleWolfModel, rot * trans);
+				break;
+			}
+			case MONSTER_KIND_ROBOT:
+			{
+				XMMATRIX trans = XMMatrixTranslation(-2.0f, -0.5f, 5.0f);
+				if (g_pBattleRobotModel) ModelDraw(g_pBattleRobotModel, trans, { 0.4f, 0.4f, 0.5f, 1.0f });
+				break;
+			}
+			case MONSTER_KIND_EYEBALL:
+			{
+				XMMATRIX rot = XMMatrixRotationZ(-XM_PIDIV2);
+				XMMATRIX trans = XMMatrixTranslation(-2.0f, 0.5f, 5.0f);
+				if (g_pBattleEyeballModel) ModelDraw(g_pBattleEyeballModel, rot * trans, { 0.8f, 0.1f, 0.1f, 1.0f });
+				break;
+			}
+			default:
+			{
+				XMMATRIX worldPlayer = XMMatrixTranslation(-2.0f, 0.0f, 5.0f);
+				Cube_Draw(g_MonsterTexSpider, worldPlayer);
+				break;
+			}
+			}
+		}
+	}
 
 	// 敵モンスター（種別ごとに3Dモデルで描画）
 	switch (g_EnemyKind) {
@@ -550,6 +634,36 @@ void Battle_Draw()
 		}
 		break;
 	}
+	case MONSTER_KIND_ROBOT:
+	{
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.3f, 0.3f, 0.4f, 1.0f });
+		// ロボット（プレイヤー方向 = -X を向く）
+		XMMATRIX rotRobot = XMMatrixRotationY(XM_PI);
+		XMMATRIX transRobot = XMMatrixTranslation(2.0f, -0.5f, 5.0f);
+		XMMATRIX worldRobot = rotRobot * transRobot;
+		if (g_pBattleRobotModel) {
+			ModelDraw(g_pBattleRobotModel, worldRobot, { 0.4f, 0.4f, 0.5f, 1.0f });
+		} else {
+			extern int g_MonsterTexRobot;
+			Cube_Draw(g_MonsterTexRobot, transRobot);
+		}
+		break;
+	}
+	case MONSTER_KIND_EYEBALL:
+	{
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.5f, 0.1f, 0.1f, 1.0f });
+		// 目玉（プレイヤー方向 = -X を向く）
+		XMMATRIX rotEye = XMMatrixRotationZ(XM_PIDIV2);
+		XMMATRIX transEye = XMMatrixTranslation(2.0f, 0.5f, 5.0f);
+		XMMATRIX worldEye = rotEye * transEye;
+		if (g_pBattleEyeballModel) {
+			ModelDraw(g_pBattleEyeballModel, worldEye, { 0.8f, 0.1f, 0.1f, 1.0f });
+		} else {
+			extern int g_MonsterTexEyeball;
+			Cube_Draw(g_MonsterTexEyeball, transEye);
+		}
+		break;
+	}
 	default:
 	{
 		XMMATRIX transEnemy = XMMatrixTranslation(2.0f, 0.0f, 5.0f);
@@ -562,9 +676,9 @@ void Battle_Draw()
 	Direct3D_SetDepthEnable(false);
 	Sprite_Begin();
 
-	// ==== プレイヤー HPバー ====================================================
-	float player_hp_ratio = (Player_GetHpMax() > 0)
-		? (float)Player_GetHp() / (float)Player_GetHpMax() : 0.0f;
+	// ==== プレイヤー（戦闘キャラ）HPバー =======================================
+	float player_hp_ratio = (Party_GetFighterHpMax() > 0)
+		? (float)Party_GetFighterHp() / (float)Party_GetFighterHpMax() : 0.0f;
 
 	// HP枠
 	Sprite_Draw(g_WhiteTexture,
@@ -580,7 +694,7 @@ void Battle_Draw()
 	XMFLOAT4 player_hp_color = { 0.0f, 1.0f, 0.0f, 1.0f };
 	if (player_hp_ratio <= 0.5f)  player_hp_color = { 1.0f, 1.0f, 0.0f, 1.0f };
 	if (player_hp_ratio <= 0.25f) player_hp_color = { 1.0f, 0.0f, 0.0f, 1.0f };
-	if (Player_GetHp() > 0) {
+	if (Party_GetFighterHp() > 0) {
 		Sprite_Draw(g_WhiteTexture,
 			g_PlayerBarX, g_PlayerBarY,
 			BATTLE_BAR_WIDTH * player_hp_ratio, BATTLE_BAR_HEIGHT,
@@ -616,18 +730,18 @@ void Battle_Draw()
 	// DebugText は毎フレーム位置・ブレンドステートをリセットしてから描画
 	char buf[64];
 
-	// プレイヤー：Lv + 名前（バー上）
+	// 戦闘キャラ：Lv + 名前（バー上）
 	if (g_pPlayerHeaderText) {
 		g_pPlayerHeaderText->Clear();
-		snprintf(buf, sizeof(buf), "Lv.%d\nPlayer", Player_GetLevel());
+		snprintf(buf, sizeof(buf), "Lv.%d\n%s", Party_GetFighterLevel(), Party_GetFighterName());
 		g_pPlayerHeaderText->SetText(buf, { 1.0f, 1.0f, 1.0f, 1.0f });
 		g_pPlayerHeaderText->Draw();
 	}
 
-	// プレイヤー：現在HP / 最大HP（バー下）
+	// 戦闘キャラ：現在HP / 最大HP（バー下）
 	if (g_pPlayerHpNumText) {
 		g_pPlayerHpNumText->Clear();
-		snprintf(buf, sizeof(buf), "%d/%d", Player_GetHp(), Player_GetHpMax());
+		snprintf(buf, sizeof(buf), "%d/%d", Party_GetFighterHp(), Party_GetFighterHpMax());
 		g_pPlayerHpNumText->SetText(buf, { 1.0f, 1.0f, 1.0f, 1.0f });
 		g_pPlayerHpNumText->Draw();
 	}
