@@ -11,39 +11,29 @@
 #include "direct3d.h"
 #include "sprite.h"
 #include "texture.h"
-#include "debug_text.h"
 #include "key_logger.h"
+#include "pad_logger.h"
 
-static int g_GameClearBgTexId = -1;  // ゲームクリア背景画像
+static int g_GameClearBgTexId = -1;
 static int g_WhiteTex = -1;
-static hal::DebugText* g_pBtnText = nullptr;
+static int g_BtnTitleTex = -1;
 
 void GameClear_Initialize()
 {
     g_GameClearBgTexId = Texture_Load(L"resource/texture/gameclear.png");
     g_WhiteTex = Texture_Load(L"resource/texture/white.png");
-
-    float sw = (float)Direct3D_GetBackBufferWidth();
-    float sh = (float)Direct3D_GetBackBufferHeight();
-
-    g_pBtnText = new hal::DebugText(
-        Direct3D_GetDevice(), Direct3D_GetContext(),
-        L"resource/texture/consolab_ascii_512.png",
-        (UINT)sw, (UINT)sh,
-        sw * 0.5f - 65.0f, sh * 0.70f,
-        2, 0, 45.0f, 20.0f
-    );
+    g_BtnTitleTex = Texture_Load(L"resource/texture/btn_title.png");
 }
 
 void GameClear_Finalize()
 {
-    if (g_pBtnText) { delete g_pBtnText; g_pBtnText = nullptr; }
 }
 
 void GameClear_Update(double elapsed_time)
 {
-    // Enter でタイトルへ
-    if (KeyLogger_IsTrigger(KK_ENTER)) {
+    // Enter / Aボタン でタイトルへ
+    if (KeyLogger_IsTrigger(KK_ENTER)
+        || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_A)) {
         Scene_Change(SCENE_TITLE);
     }
 }
@@ -62,22 +52,21 @@ void GameClear_Draw()
     // ゲームクリア背景画像を全画面描画
     Sprite_Draw(g_GameClearBgTexId, 0.0f, 0.0f, sw, sh);
 
-    // Titleボタン
-    float btnX = sw * 0.5f - 65.0f;
-    float btnY = sh * 0.70f;
+    // タイトルへボタン
+    float btnW = 256.0f;
+    float btnH = 64.0f;
+    float btnX = sw * 0.5f - btnW * 0.5f;
+    float btnY = sh * 0.68f;
 
     // ボタン背景ハイライト
     Sprite_Draw(g_WhiteTex,
-        btnX - 15.0f, btnY - 3.0f,
-        200.0f, 38.0f,
-        { 1.0f, 1.0f, 0.0f, 0.3f });
+        btnX - 10.0f, btnY - 5.0f,
+        btnW + 20.0f, btnH + 10.0f,
+        { 1.0f, 1.0f, 0.0f, 0.25f });
 
-    // ボタンテキスト
-    if (g_pBtnText) {
-        g_pBtnText->Clear();
-        g_pBtnText->SetText("> Title", { 1.0f, 1.0f, 1.0f, 1.0f });
-        g_pBtnText->Draw();
-    }
+    // タイトルへボタン
+    Sprite_Draw(g_BtnTitleTex, btnX, btnY,
+        btnW, btnH, { 1.0f, 1.0f, 0.2f, 1.0f });
 
     Direct3D_SetDepthEnable(true);
 }

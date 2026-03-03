@@ -27,6 +27,7 @@
 #include "debug_text.h"
 #include "model.h"
 #include "party.h"
+#include "pad_logger.h"
 #include <cstdio>
 #include <cstdlib>
 using namespace DirectX;
@@ -110,7 +111,7 @@ static MODEL* g_pBattlePlayerModel  = nullptr;  // プレイヤー用スライムモデル
 // スケール定数（モデルサイズに合わせて調整可）
 static constexpr float SPIDER_MODEL_SCALE  = 0.15f;
 static constexpr float WOLF_MODEL_SCALE    = 3.0f;
-static constexpr float DRAGON_MODEL_SCALE  = 0.03f;
+static constexpr float DRAGON_MODEL_SCALE  = 0.1f;
 static constexpr float ROBOT_MODEL_SCALE   = 0.3f;
 static constexpr float EYEBALL_MODEL_SCALE = 0.3f;
 
@@ -368,12 +369,12 @@ void Battle_Update(double elapsed_time)
 		return;
 	}
 
-	// 交代フェーズ：Tabで切替、Spaceで戦闘再開
+	// 交代フェーズ：Tab/RBで切替、Space/Aで戦闘再開
 	if (g_BattlePhase == PHASE_SWAP) {
-		if (KeyLogger_IsTrigger(KK_TAB)) {
+		if (KeyLogger_IsTrigger(KK_TAB) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_RIGHT_SHOULDER)) {
 			Party_CycleActiveFighter();
 		}
-		if (KeyLogger_IsTrigger(KK_SPACE)) {
+		if (KeyLogger_IsTrigger(KK_SPACE) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_A)) {
 			g_BattlePhase = PHASE_BATTLE;
 			g_EnemyAttackTimer = g_EnemyAttackInterval;  // 敵攻撃タイマーリセット
 		}
@@ -383,7 +384,7 @@ void Battle_Update(double elapsed_time)
 	g_ShootCooldown -= elapsed_time;
 	if (g_ShootCooldown < 0.0) g_ShootCooldown = 0.0;
 
-	if (KeyLogger_IsTrigger(KK_SPACE) && g_ShootCooldown <= 0.0) {
+	if ((KeyLogger_IsTrigger(KK_SPACE) || PadLogger_GetRightTrigger(0) > 0.8f) && g_ShootCooldown <= 0.0) {
 		// 空きスロットを探す
 		int slot = -1;
 		for (int i = 0; i < 10; i++) {
@@ -582,7 +583,7 @@ void Battle_Draw()
 			case MONSTER_KIND_SPIDER:
 			{
 				XMMATRIX rot = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(XM_PIDIV2);
-				XMMATRIX trans = XMMatrixTranslation(-3.5f, -0.5f, 5.0f);
+				XMMATRIX trans = XMMatrixTranslation(-2.5f, -0.5f, 5.0f);
 				if (g_pBattleSpiderModel) ModelDraw(g_pBattleSpiderModel, rot * trans, { 0.1f, 0.1f, 0.1f, 1.0f });
 				break;
 			}
@@ -641,7 +642,7 @@ void Battle_Draw()
 		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
 		// ドラゴン（ボスは常に大きいのでさらに拡大）
 		XMMATRIX rotDragon = XMMatrixRotationY(XM_PIDIV2);
-		XMMATRIX transDragon = XMMatrixTranslation(3.0f, -0.5f, 5.0f);
+		XMMATRIX transDragon = XMMatrixTranslation(5.0f, -4.5f, 5.0f);
 		XMMATRIX worldDragon = bossScaleMtx * rotDragon * transDragon;
 		if (g_pBattleDragonModel) {
 			ModelDraw(g_pBattleDragonModel, worldDragon, { 0.0f, 0.0f, 1.0f, 1.0f });
@@ -655,7 +656,7 @@ void Battle_Draw()
 		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.2f, 0.2f, 0.2f, 1.0f });
 		// クモ
 		XMMATRIX rotSpider = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(-XM_PIDIV2);
-		XMMATRIX transSpider = XMMatrixTranslation(3.0f, -0.5f, 5.0f);
+		XMMATRIX transSpider = XMMatrixTranslation(2.0f, -0.5f, 5.0f);
 		XMMATRIX worldSpider = bossScaleMtx * rotSpider * transSpider;
 		if (g_pBattleSpiderModel) {
 			ModelDraw(g_pBattleSpiderModel, worldSpider, { 0.1f, 0.1f, 0.1f, 1.0f });

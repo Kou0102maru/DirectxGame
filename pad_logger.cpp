@@ -95,6 +95,41 @@ XMFLOAT2 PadLogger_GetLeftThumbStick(DWORD user_index)
 	return { x, y };
 }
 
+XMFLOAT2 PadLogger_GetRightThumbStick(DWORD user_index)
+{
+	float x = 0.0f, y = 0.0f;
+
+	if (g_State[user_index].Gamepad.sThumbRX < 0) {
+		if (g_State[user_index].Gamepad.sThumbRX < -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) {
+			x = (float)g_State[user_index].Gamepad.sThumbRX / 32768.0f;
+		}
+	}
+	else {
+		if (g_State[user_index].Gamepad.sThumbRX > XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) {
+			x = (float)g_State[user_index].Gamepad.sThumbRX / 32767.0f;
+		}
+	}
+
+	if (g_State[user_index].Gamepad.sThumbRY < 0) {
+		if (g_State[user_index].Gamepad.sThumbRY < -XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) {
+			y = (float)g_State[user_index].Gamepad.sThumbRY / 32768.0f;
+		}
+	}
+	else {
+		if (g_State[user_index].Gamepad.sThumbRY > XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE) {
+			y = (float)g_State[user_index].Gamepad.sThumbRY / 32767.0f;
+		}
+	}
+
+	if (XMVectorGetX(XMVector2LengthSq({ x, y })) > 1.0f) {
+		XMFLOAT2 ret;
+		XMStoreFloat2(&ret, XMVector2Normalize({ x, y }));
+		return ret;
+	}
+
+	return { x, y };
+}
+
 float PadLogger_GetLeftTrigger(DWORD user_index)
 {
 	return (float)g_State[user_index].Gamepad.bLeftTrigger/255.0f;

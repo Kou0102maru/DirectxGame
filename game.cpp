@@ -39,6 +39,7 @@ using namespace DirectX;
 #include"battle.h"
 #include"particle_test.h"
 #include"party.h"
+#include"pad_logger.h"
 #include <cstdlib>
 
 static double g_AccumulatedTime = 0.0;
@@ -50,8 +51,25 @@ static bool g_ShowStatus = false;
 static hal::DebugText* g_pStatusText = nullptr;
 static int g_StatusWhiteTex = -1;
 
-// フィールドHUD（戦闘キャラ名表示）
-static hal::DebugText* g_pFighterHudText = nullptr;
+// フィールドHUD（パーティアイコン表示）
+static int g_IconSlimeTex = -1;    // プレイヤー（スライム）
+static int g_IconSpiderTex = -1;
+static int g_IconWolfTex = -1;
+static int g_IconDragonTex = -1;
+static int g_IconRobotTex = -1;
+static int g_IconEyeballTex = -1;
+
+static int GetMonsterIconTex(MonsterKind kind)
+{
+	switch (kind) {
+	case MONSTER_KIND_SPIDER:  return g_IconSpiderTex;
+	case MONSTER_KIND_WOLF:    return g_IconWolfTex;
+	case MONSTER_KIND_DRAGON:  return g_IconDragonTex;
+	case MONSTER_KIND_ROBOT:   return g_IconRobotTex;
+	case MONSTER_KIND_EYEBALL: return g_IconEyeballTex;
+	default: return -1;
+	}
+}
 
 //=============================================================================
 // 距離ベース敵出現システム（ドラゴン除外）
@@ -270,16 +288,15 @@ void Game_Initialize()
 			32, 0, 20.0f, 11.0f
 		);
 
-		// フィールドHUD（画面上部に戦闘キャラ名、デバッグ文字の下）
-		delete g_pFighterHudText;
-		g_pFighterHudText = new hal::DebugText(
-			Direct3D_GetDevice(), Direct3D_GetContext(),
-			L"resource/texture/consolab_ascii_512.png",
-			(UINT)sw, (UINT)sh,
-			10.0f, 40.0f,
-			1, 0, 18.0f, 18.0f
-		);
 	}
+
+	// パーティアイコンテクスチャのロード
+	g_IconSlimeTex   = Texture_Load(L"resource/texture/slimeicon.png");
+	g_IconSpiderTex  = Texture_Load(L"resource/texture/spidericon.png");
+	g_IconWolfTex    = Texture_Load(L"resource/texture/wolficon.png");
+	g_IconDragonTex  = Texture_Load(L"resource/texture/dragonicon.png");
+	g_IconRobotTex   = Texture_Load(L"resource/texture/roboticon.png");
+	g_IconEyeballTex = Texture_Load(L"resource/texture/eyeicon.png");
 }
 
 
@@ -290,8 +307,6 @@ void Game_Finalize()
 
 	delete g_pStatusText;
 	g_pStatusText = nullptr;
-	delete g_pFighterHudText;
-	g_pFighterHudText = nullptr;
 
 	CircleShadow_Finalize();
 	Trajectory3d_Finalize();
@@ -332,13 +347,13 @@ void Game_Update(double elapsed_time)
 		}
 	}
 
-	// Mキー：ステータス画面のトグル（ポーズ中でも受け付ける）
-	if (KeyLogger_IsTrigger(KK_M)) {
+	// Mキー / Startボタン：ステータス画面のトグル
+	if (KeyLogger_IsTrigger(KK_M) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_START)) {
 		g_ShowStatus = !g_ShowStatus;
 	}
 
-	// Tabキー：戦闘キャラ切替
-	if (KeyLogger_IsTrigger(KK_TAB)) {
+	// Tabキー / RBボタン：戦闘キャラ切替
+	if (KeyLogger_IsTrigger(KK_TAB) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_RIGHT_SHOULDER)) {
 		Party_CycleActiveFighter();
 	}
 
@@ -619,14 +634,53 @@ void Game_Draw()
 		}
 	}
 
-	// フィールドHUD: 現在の戦闘キャラ名を画面左上に表示
-	if (g_pFighterHudText) {
-		g_pFighterHudText->Clear();
-		char hbuf[64];
-		snprintf(hbuf, sizeof(hbuf), "Fighter: %s Lv.%d  [Tab]",
-			Party_GetFighterName(), Party_GetFighterLevel());
-		g_pFighterHudText->SetText(hbuf, { 1.0f, 1.0f, 1.0f, 1.0f });
-		g_pFighterHudText->Draw();
+	// フィールドHUD: パーティアイコン表示（画面左上）
+	{
+		float iconSize = 48.0f;
+		float iconPad = 6.0f;
+		float hudX = 10.0f;
+		float hudY = 35.0f;
+		int activeFighter = Party_GetActiveFighter();
+
+		// プレイヤー（スライム）アイコン
+		bool playerActive = (activeFighter == -1);
+		if (playerActive) {
+			Sprite_Draw(g_StatusWhiteTex, hudX - 3.0f, hudY - 3.0f,
+				iconSize + 6.0f, iconSize + 6.0f, { 1.0f, 1.0f, 0.0f, 0.8f });
+		}
+		if (Player_GetHp() <= 0)
+			Sprite_Draw(g_IconSlimeTex, hudX, hudY, iconSize, iconSize, { 0.3f, 0.3f, 0.3f, 0.5f });
+		else if (playerActive)
+			Sprite_Draw(g_IconSlimeTex, hudX, hudY, iconSize, iconSize, { 1.0f, 1.0f, 1.0f, 1.0f });
+		else
+			Sprite_Draw(g_IconSlimeTex, hudX, hudY, iconSize, iconSize, { 0.6f, 0.6f, 0.6f, 0.8f });
+		hudX += iconSize + iconPad;
+
+		// パーティメンバーアイコン
+		for (int i = 0; i < Party_GetCount(); i++) {
+			const PartyMonster* pm = Party_Get(i);
+			if (!pm) continue;
+			int iconTex = GetMonsterIconTex(pm->kind);
+			bool isActive = (i == activeFighter);
+
+			// アクティブ枠（黄色ハイライト）
+			if (isActive) {
+				Sprite_Draw(g_StatusWhiteTex, hudX - 3.0f, hudY - 3.0f,
+					iconSize + 6.0f, iconSize + 6.0f, { 1.0f, 1.0f, 0.0f, 0.8f });
+			}
+
+			if (iconTex >= 0) {
+				float alpha = (pm->hp > 0) ? 1.0f : 0.5f;
+				if (isActive)
+					Sprite_Draw(iconTex, hudX, hudY, iconSize, iconSize, { 1.0f, 1.0f, 1.0f, alpha });
+				else
+					Sprite_Draw(iconTex, hudX, hudY, iconSize, iconSize, { 0.6f, 0.6f, 0.6f, alpha * 0.8f });
+			} else {
+				// アイコン未作成時の代替表示
+				Sprite_Draw(g_StatusWhiteTex, hudX, hudY, iconSize, iconSize, { 0.4f, 0.4f, 0.4f, 0.7f });
+			}
+			hudX += iconSize + iconPad;
+		}
 	}
 
 	Direct3D_SetDepthEnable(true);

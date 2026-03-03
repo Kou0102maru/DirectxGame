@@ -1,6 +1,6 @@
 /*==============================================================================
 
-   プレイヤー処理 [player.cpp]
+   ?v???C???[???? [player.cpp]
 														 Author : Youhei Sato
 														 Date   : 2025/10/31
 --------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ static XMFLOAT3 g_PlayerFront{ 0.0f, 0.0f, 1.0f };
 static XMFLOAT3 g_PlayerVelocity{};
 static MODEL* g_pPlayerModel{ nullptr };
 
-// フィールド用パーティモンスターモデル
+// ?t?B?[???h?p?p?[?e?B?????X?^?[???f??
 static MODEL* g_pFieldSpiderModel  = nullptr;
 static MODEL* g_pFieldWolfModel    = nullptr;
 static MODEL* g_pFieldDragonModel  = nullptr;
@@ -66,7 +66,7 @@ void Player_Initialize(const XMFLOAT3& position, const XMFLOAT3& front)
 
 	g_pPlayerModel = ModelLoad("resource/model/slime.fbx", 0.8f);
 
-	// パーティモンスター用フィールドモデルのロード
+	// ?p?[?e?B?????X?^?[?p?t?B?[???h???f??????[?h
 	if (g_pFieldSpiderModel)  { ModelRelease(g_pFieldSpiderModel);  g_pFieldSpiderModel  = nullptr; }
 	if (g_pFieldWolfModel)    { ModelRelease(g_pFieldWolfModel);    g_pFieldWolfModel    = nullptr; }
 	if (g_pFieldDragonModel)  { ModelRelease(g_pFieldDragonModel);  g_pFieldDragonModel  = nullptr; }
@@ -91,32 +91,32 @@ void Player_Finalize()
 
 void Player_Update(double elapsed_time)
 {
-	// 前フレームの速度からプレイヤー座標とエネルギーを計算
+	// ?O?t???[??????x????v???C???[???W??G?l???M?[??v?Z
 	XMVECTOR position = XMLoadFloat3(&g_PlayerPosition);
 	XMVECTOR velocity = XMLoadFloat3(&g_PlayerVelocity);
 
-	// ジャンプ処理
+	// ?W?????v????
 	if ((KeyLogger_IsTrigger(KK_J) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_A)) && !g_IsJump) {
 		velocity += { 0.0f, 30.0f, 0.0f };
 		g_IsJump = true;
 	}
 
-	// 重力適用
+	// ?d??K?p
 	XMVECTOR gdir{ 0.0f, 1.0f, 0.0f };
 	velocity += gdir * -9.8f * 10.0f * (float)elapsed_time;
 	position += velocity * (float)elapsed_time;
 
-	// 重力適用後プレイヤーとマップオブジェクトの衝突判定
+	// ?d??K?p??v???C???[??}?b?v?I?u?W?F?N?g???????
 	for (int i = 0; i < Map_GetObjectsCount(); i++) {
 
 		AABB player = Player_ConvertPositionToAABB(position);
 
-		// 各オブジェクトと衝突判定
+		// ?e?I?u?W?F?N?g???????
 		AABB object = Map_GetObject(i)->Aabb;
 		Hit hit = Collision_IsHitAABB(object, player);
 
 		if (hit.isHit) {
-			if (hit.noraml.y > 0.0f) { // 上面に着地
+			if (hit.noraml.y > 0.0f) { // ??????n
 				position = XMVectorSetY(position, object.max.y);
 				velocity *= { 1.0f, 0.0f, 1.0f };
 				g_IsJump = false;
@@ -124,7 +124,7 @@ void Player_Update(double elapsed_time)
 		}
 	}
 
-	// メッシュフィールド地面との接地判定（Y=0が地面）
+	// ???b?V???t?B?[???h?n?????n????iY=0???n??j
 	if (XMVectorGetY(position) < 0.0f) {
 		position = XMVectorSetY(position, 0.0f);
 		velocity *= { 1.0f, 0.0f, 1.0f };
@@ -132,45 +132,39 @@ void Player_Update(double elapsed_time)
 	}
 
 	XMVECTOR direction{};
-	XMVECTOR front = XMLoadFloat3(&PlayerCamera_GetFront()) * XMVECTOR { 1.0f, 0.0f, 1.0f };
+	// ?J?????O?????iXZ???????e?{???K???j
+	XMVECTOR camFront = XMLoadFloat3(&PlayerCamera_GetFront()) * XMVECTOR{ 1.0f, 0.0f, 1.0f };
+	camFront = XMVector3Normalize(camFront);
+	XMVECTOR camRight = XMVector3Cross({ 0.0f, 1.0f, 0.0f }, camFront);
 
-	if (KeyLogger_IsPressed(KK_W)) {
-		direction += front;
-	}
+	// WASD?i?J??????j
+	if (KeyLogger_IsPressed(KK_W)) direction += camFront;
+	if (KeyLogger_IsPressed(KK_S)) direction -= camFront;
+	if (KeyLogger_IsPressed(KK_D)) direction += camRight;
+	if (KeyLogger_IsPressed(KK_A)) direction -= camRight;
 
-	if (KeyLogger_IsPressed(KK_S)) {
-		direction += -front;
-	}
-
-	if (KeyLogger_IsPressed(KK_D)) {
-		direction += XMVector3Cross({ 0.0f, 1.0f, 0.0f }, front);
-	}
-
-	if (KeyLogger_IsPressed(KK_A)) {
-		direction -= XMVector3Cross({ 0.0f, 1.0f, 0.0f }, front);
-	}
-
+	// ???X?e?B?b?N?i?J??????j
 	XMFLOAT2 pad_left_Thumb = PadLogger_GetLeftThumbStick(0);
-
-	if (XMVectorGetX(XMVector3LengthSq(XMVECTOR{ pad_left_Thumb.x, 0.0f, pad_left_Thumb.y })) > 0.0f) {
-		direction += XMVECTOR{ pad_left_Thumb.x, 0.0f, pad_left_Thumb.y } + XMLoadFloat3(&g_PlayerFront);
+	if (pad_left_Thumb.x != 0.0f || pad_left_Thumb.y != 0.0f) {
+		direction += camFront * pad_left_Thumb.y + camRight * pad_left_Thumb.x;
 	}
 
 	if (XMVectorGetX(XMVector3LengthSq(direction)) > 0.0f) {
 		direction = XMVector3Normalize(direction);
 
-		// 2ベクトル間の角度
+		// 2?x?N?g?????p?x
 		float dot = XMVectorGetX(XMVector3Dot(XMLoadFloat3(&g_PlayerFront), direction));
 		float angle = acosf(dot);
 
-		// 回転速度
+		// ??]???x
 		const float ROTATION_SPEED = XM_2PI * 2.0f * (float)elapsed_time;
 
+		XMVECTOR newFront;
 		if (angle < ROTATION_SPEED) {
-			front = direction;
+			newFront = direction;
 		}
 		else {
-			// 左右どちらに回転するか判定
+			// ???E???????]????????
 			XMMATRIX r = XMMatrixIdentity();
 
 			if (XMVectorGetY(XMVector3Cross(XMLoadFloat3(&g_PlayerFront), direction)) < 0.0f) {
@@ -180,22 +174,22 @@ void Player_Update(double elapsed_time)
 				r = XMMatrixRotationY(ROTATION_SPEED);
 			}
 
-			front = XMVector3TransformNormal(XMLoadFloat3(&g_PlayerFront), r);
+			newFront = XMVector3TransformNormal(XMLoadFloat3(&g_PlayerFront), r);
 		}
 
-		velocity += front * (float)(2000.0 / 50.0 * elapsed_time);
-		XMStoreFloat3(&g_PlayerFront, front);
+		velocity += newFront * (float)(2000.0 / 50.0 * elapsed_time);
+		XMStoreFloat3(&g_PlayerFront, newFront);
 	}
 
-	velocity += -velocity * (float)(10.0 * elapsed_time); // 摩擦
+	velocity += -velocity * (float)(10.0 * elapsed_time); // ???C
 	position += velocity * (float)elapsed_time;
 
-	// 移動後プレイヤーとマップオブジェクトの衝突判定
+	// ?????v???C???[??}?b?v?I?u?W?F?N?g???????
 	for (int i = 0; i < Map_GetObjectsCount(); i++) {
 
 		AABB player = Player_ConvertPositionToAABB(position);
 
-		// 各オブジェクトと衝突判定
+		// ?e?I?u?W?F?N?g???????
 		AABB object = Map_GetObject(i)->Aabb;
 		Hit hit = Collision_IsHitAABB(object, player);
 
@@ -226,7 +220,7 @@ void Player_Update(double elapsed_time)
 	XMStoreFloat3(&g_PlayerPosition, position);
 	XMStoreFloat3(&g_PlayerVelocity, velocity);
 
-	/* フィールド弾の発射処理
+	/* ?t?B?[???h?e????????
 	if (KeyLogger_IsPressed(KK_SPACE) || PadLogger_GetRightTrigger(0) > 0.8f) {
 		if (g_Rapid_Time <= 0.0) {
 			XMFLOAT3 shot_position = g_PlayerPosition;
@@ -257,12 +251,12 @@ void Player_Draw()
 	MonsterKind fighterKind = Party_GetFighterKind();
 
 	if (fighterKind == MONSTER_KIND_MAX) {
-		// プレイヤー本人：スライムモデル
+		// ?v???C???[?{?l?F?X???C?????f??
 		XMMATRIX r = XMMatrixRotationY(angle);
 		XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.65f, g_PlayerPosition.z);
 		ModelDraw(g_pPlayerModel, r * t);
 	} else {
-		// パーティモンスターのモデルを表示
+		// ?p?[?e?B?????X?^?[????f????\??
 		switch (fighterKind) {
 		case MONSTER_KIND_SPIDER:
 		{
@@ -303,7 +297,7 @@ void Player_Draw()
 		}
 		default:
 		{
-			// フォールバック：スライムモデル
+			// ?t?H?[???o?b?N?F?X???C?????f??
 			XMMATRIX r = XMMatrixRotationY(angle);
 			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.65f, g_PlayerPosition.z);
 			ModelDraw(g_pPlayerModel, r * t);
@@ -408,7 +402,7 @@ void Player_GainExp(int exp)
 {
 	g_PlayerExp += exp;
 	while (g_PlayerExp >= g_PlayerExpNext) {
-		g_PlayerExp = 0;  // レベルアップ時に累積経験値を0にリセット
+		g_PlayerExp = 0;  // ???x???A?b?v??????o???l??0????Z?b?g
 		Player_LevelUp();
 	}
 }
