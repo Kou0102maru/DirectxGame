@@ -15,7 +15,7 @@ using namespace DirectX;
 
 
 // メッシュフィールドデータ
-static constexpr float FIELD_MESH_SIZE = 1.0f; // メッシュ１枚分のサイズ（正方形)
+static constexpr float FIELD_MESH_SIZE = 2.0f; // メッシュ１枚分のサイズ（正方形)
 static constexpr int FIELD_MESH_H_COUNT = 100; // 横のメッシュ数
 static constexpr int FIELD_MESH_V_COUNT = 100; // 縦のメッシュ数
 static constexpr int FIELD_MESH_H_VERTEX_COUNT = FIELD_MESH_H_COUNT + 1; // 横の頂点数

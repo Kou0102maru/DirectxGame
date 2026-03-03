@@ -106,10 +106,11 @@ static MODEL* g_pBattleWolfModel   = nullptr;
 static MODEL* g_pBattleDragonModel = nullptr;
 static MODEL* g_pBattleRobotModel  = nullptr;
 static MODEL* g_pBattleEyeballModel = nullptr;
+static MODEL* g_pBattlePlayerModel  = nullptr;  // プレイヤー用スライムモデル
 // スケール定数（モデルサイズに合わせて調整可）
 static constexpr float SPIDER_MODEL_SCALE  = 0.15f;
 static constexpr float WOLF_MODEL_SCALE    = 3.0f;
-static constexpr float DRAGON_MODEL_SCALE  = 0.2f;
+static constexpr float DRAGON_MODEL_SCALE  = 0.03f;
 static constexpr float ROBOT_MODEL_SCALE   = 0.3f;
 static constexpr float EYEBALL_MODEL_SCALE = 0.3f;
 
@@ -119,22 +120,22 @@ static hal::DebugText* g_pPlayerHpNumText  = nullptr;  // HP数値
 static hal::DebugText* g_pEnemyHeaderText  = nullptr;  // 敵Lv + 名前
 
 // バトルフェーズ管理
-enum BattlePhase { PHASE_BATTLE = 0, PHASE_WIN, PHASE_LOSE };
+enum BattlePhase { PHASE_BATTLE = 0, PHASE_WIN, PHASE_LOSE, PHASE_SWAP };
 static BattlePhase     g_BattlePhase   = PHASE_BATTLE;
 static double          g_ResultTimer   = 0.0;
 static int             g_LastExpReward = 0;
 static bool            g_CapturedThisBattle = false;  // 仲間になったか
 static hal::DebugText* g_pResultText   = nullptr;  // 勝敗リザルト表示用
 
-// 仲間確率（%）
+// 仲間確率（%）※デバッグ用: 全て100%
 static int GetCaptureRate(MonsterKind kind)
 {
 	switch (kind) {
-	case MONSTER_KIND_SPIDER:  return 30;
-	case MONSTER_KIND_WOLF:   return 20;
-	case MONSTER_KIND_DRAGON: return 0;   // ラスボスは仲間にならない
-	case MONSTER_KIND_ROBOT:  return 15;
-	case MONSTER_KIND_EYEBALL: return 25;
+	case MONSTER_KIND_SPIDER:  return 100;  // 本来30
+	case MONSTER_KIND_WOLF:   return 100;  // 本来20
+	case MONSTER_KIND_DRAGON: return 100;  // 本来0（ラスボス）
+	case MONSTER_KIND_ROBOT:  return 100;  // 本来15
+	case MONSTER_KIND_EYEBALL: return 100;  // 本来25
 	default:                  return 0;
 	}
 }
@@ -246,11 +247,13 @@ void Battle_Initialize()
 	if (g_pBattleDragonModel) { ModelRelease(g_pBattleDragonModel); g_pBattleDragonModel = nullptr; }
 	if (g_pBattleRobotModel) { ModelRelease(g_pBattleRobotModel); g_pBattleRobotModel = nullptr; }
 	if (g_pBattleEyeballModel) { ModelRelease(g_pBattleEyeballModel); g_pBattleEyeballModel = nullptr; }
+	if (g_pBattlePlayerModel) { ModelRelease(g_pBattlePlayerModel); g_pBattlePlayerModel = nullptr; }
 	g_pBattleSpiderModel  = ModelLoad("resource/model/sp.fbx", SPIDER_MODEL_SCALE, false);
 	g_pBattleWolfModel    = ModelLoad("resource/model/Wolf.fbx", WOLF_MODEL_SCALE, true);
 	g_pBattleDragonModel  = ModelLoad("resource/model/Dragon.fbx", DRAGON_MODEL_SCALE, true);
 	g_pBattleRobotModel   = ModelLoad("resource/model/robot.fbx", ROBOT_MODEL_SCALE, true);
 	g_pBattleEyeballModel = ModelLoad("resource/model/eyeball.fbx", EYEBALL_MODEL_SCALE, true);
+	g_pBattlePlayerModel  = ModelLoad("resource/model/slime.fbx", 0.65f);
 
 	for (int i = 0; i < 10; i++) g_BattleBullets[i].active = false;
 	for (int i = 0; i < 5;  i++) g_EnemyBullets[i].active = false;
@@ -365,6 +368,18 @@ void Battle_Update(double elapsed_time)
 		return;
 	}
 
+	// 交代フェーズ：Tabで切替、Spaceで戦闘再開
+	if (g_BattlePhase == PHASE_SWAP) {
+		if (KeyLogger_IsTrigger(KK_TAB)) {
+			Party_CycleActiveFighter();
+		}
+		if (KeyLogger_IsTrigger(KK_SPACE)) {
+			g_BattlePhase = PHASE_BATTLE;
+			g_EnemyAttackTimer = g_EnemyAttackInterval;  // 敵攻撃タイマーリセット
+		}
+		return;
+	}
+
 	g_ShootCooldown -= elapsed_time;
 	if (g_ShootCooldown < 0.0) g_ShootCooldown = 0.0;
 
@@ -377,7 +392,7 @@ void Battle_Update(double elapsed_time)
 
 		// 弾生成
 		if (slot >= 0) {
-			g_BattleBullets[slot].x = -2.0f;  // プレイヤー位置
+			g_BattleBullets[slot].x = -2.5f;  // プレイヤー位置
 			g_BattleBullets[slot].active = true;
 			g_BattleBullets[slot].lifetime = 0.0;
 		}
@@ -398,7 +413,7 @@ void Battle_Update(double elapsed_time)
 
 			// 当たり判定
 			if (g_EnemyHp > 0 && g_BattleBullets[i].x >= 1.5f && g_BattleBullets[i].x <= 2.5f) {
-				int dmg = Party_GetFighterAtk() - g_EnemyDef / 2;
+				int dmg = 9999;  // デバッグ: 一撃で倒す（本来: Party_GetFighterAtk() - g_EnemyDef / 2）
 				if (dmg < 1) dmg = 1;
 				g_EnemyHp -= dmg;
 				if (g_EnemyHp < 0) g_EnemyHp = 0;
@@ -457,7 +472,7 @@ void Battle_Update(double elapsed_time)
 				continue;
 			}
 
-			if (g_EnemyBullets[i].x <= -1.5f && g_EnemyBullets[i].x >= -2.5f) {
+			if (g_EnemyBullets[i].x <= -2.0f && g_EnemyBullets[i].x >= -3.0f) {
 				int dmg = g_EnemyAtk - Party_GetFighterDef() / 2;
 				if (dmg < 1) dmg = 1;
 				Party_FighterTakeDamage(dmg);
@@ -475,20 +490,28 @@ void Battle_Update(double elapsed_time)
 		g_HitEffect->Update(elapsed_time);
 	}
 
-	// 戦闘キャラ死亡 -> 敗北フェーズへ
+	// 戦闘キャラ死亡 -> 交代 or ゲームオーバー
 	if (Party_GetFighterHp() <= 0) {
-		// 残弾を全消去（リザルト表示を隠さないように）
+		// 残弾を全消去
 		for (int i = 0; i < 10; i++) g_BattleBullets[i].active = false;
 		for (int i = 0; i < 5;  i++) g_EnemyBullets[i].active = false;
-		g_BattlePhase = PHASE_LOSE;
-		g_ResultTimer = 2.5;
+
+		// 他に生存者がいるか確認
+		if (Party_SwitchToNextAlive()) {
+			// 次の生存者に自動切替 → 交代フェーズへ
+			g_BattlePhase = PHASE_SWAP;
+		} else {
+			// 全滅 → ゲームオーバー
+			g_BattlePhase = PHASE_LOSE;
+			g_ResultTimer = 2.5;
+		}
 		return;
 	}
 
 	// モンスター撃破 -> 経験値付与・仲間判定・勝利フェーズへ
 	if (g_EnemyHp <= 0) {
 		g_LastExpReward = g_EnemyExpReward;
-		Party_FighterGainExp(g_EnemyExpReward);
+		Party_AllGainExp(g_EnemyExpReward);  // プレイヤー＋全パーティモンスターにEXP付与
 
 		// ボス撃破フラグ
 		if (g_IsBossBattle) {
@@ -547,42 +570,45 @@ void Battle_Draw()
 	{
 		MonsterKind fighterKind = Party_GetFighterKind();
 		if (fighterKind == MONSTER_KIND_MAX) {
-			// プレイヤー本人: 青キューブ
-			XMMATRIX worldPlayer = XMMatrixTranslation(-2.0f, 0.0f, 5.0f);
-			Cube_Draw(g_MonsterTexSpider, worldPlayer);
+			// プレイヤー本人: スライムモデル（フィールドと同じ）
+			XMMATRIX rot = XMMatrixRotationY(XMConvertToRadians(270.0f));
+			XMMATRIX trans = XMMatrixTranslation(-2.5f, -0.5f, 5.0f);
+			if (g_pBattlePlayerModel) {
+				ModelDraw(g_pBattlePlayerModel, rot * trans);
+			}
 		} else {
 			// パーティモンスター: 対応3Dモデル（敵と左右反転）
 			switch (fighterKind) {
 			case MONSTER_KIND_SPIDER:
 			{
 				XMMATRIX rot = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(XM_PIDIV2);
-				XMMATRIX trans = XMMatrixTranslation(-3.0f, -0.5f, 5.0f);
+				XMMATRIX trans = XMMatrixTranslation(-3.5f, -0.5f, 5.0f);
 				if (g_pBattleSpiderModel) ModelDraw(g_pBattleSpiderModel, rot * trans, { 0.1f, 0.1f, 0.1f, 1.0f });
 				break;
 			}
 			case MONSTER_KIND_WOLF:
 			{
 				XMMATRIX rot = XMMatrixRotationY(-XM_PIDIV2);
-				XMMATRIX trans = XMMatrixTranslation(-2.0f, -1.0f, 5.0f);
+				XMMATRIX trans = XMMatrixTranslation(-2.5f, -1.0f, 5.0f);
 				if (g_pBattleWolfModel) ModelDraw(g_pBattleWolfModel, rot * trans);
 				break;
 			}
 			case MONSTER_KIND_ROBOT:
 			{
-				XMMATRIX trans = XMMatrixTranslation(-2.0f, -0.5f, 5.0f);
+				XMMATRIX trans = XMMatrixTranslation(-2.5f, -0.5f, 5.0f);
 				if (g_pBattleRobotModel) ModelDraw(g_pBattleRobotModel, trans, { 0.4f, 0.4f, 0.5f, 1.0f });
 				break;
 			}
 			case MONSTER_KIND_EYEBALL:
 			{
 				XMMATRIX rot = XMMatrixRotationZ(-XM_PIDIV2);
-				XMMATRIX trans = XMMatrixTranslation(-2.0f, 0.5f, 5.0f);
+				XMMATRIX trans = XMMatrixTranslation(-2.5f, 0.5f, 5.0f);
 				if (g_pBattleEyeballModel) ModelDraw(g_pBattleEyeballModel, rot * trans, { 0.8f, 0.1f, 0.1f, 1.0f });
 				break;
 			}
 			default:
 			{
-				XMMATRIX worldPlayer = XMMatrixTranslation(-2.0f, 0.0f, 5.0f);
+				XMMATRIX worldPlayer = XMMatrixTranslation(-2.5f, 0.0f, 5.0f);
 				Cube_Draw(g_MonsterTexSpider, worldPlayer);
 				break;
 			}
@@ -591,6 +617,10 @@ void Battle_Draw()
 	}
 
 	// 敵モンスター（種別ごとに3Dモデルで描画）
+	// ボス戦時は2.0倍スケール
+	float bossScale = g_IsBossBattle ? 2.0f : 1.0f;
+	XMMATRIX bossScaleMtx = XMMatrixScaling(bossScale, bossScale, bossScale);
+
 	switch (g_EnemyKind) {
 	case MONSTER_KIND_WOLF:
 	{
@@ -598,7 +628,7 @@ void Battle_Draw()
 		// オオカミ
 		XMMATRIX rotWolf = XMMatrixRotationY(XM_PIDIV2);
 		XMMATRIX transWolf = XMMatrixTranslation(2.0f, -1.0f, 5.0f);
-		XMMATRIX worldWolf = rotWolf * transWolf;
+		XMMATRIX worldWolf = bossScaleMtx * rotWolf * transWolf;
 		if (g_pBattleWolfModel) {
 			ModelDraw(g_pBattleWolfModel, worldWolf);
 		} else {
@@ -609,10 +639,10 @@ void Battle_Draw()
 	case MONSTER_KIND_DRAGON:
 	{
 		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
-		// ドラゴン
+		// ドラゴン（ボスは常に大きいのでさらに拡大）
 		XMMATRIX rotDragon = XMMatrixRotationY(XM_PIDIV2);
-		XMMATRIX transDragon = XMMatrixTranslation(5.5f, -4.5f, 5.0f);
-		XMMATRIX worldDragon = rotDragon * transDragon;
+		XMMATRIX transDragon = XMMatrixTranslation(3.0f, -0.5f, 5.0f);
+		XMMATRIX worldDragon = bossScaleMtx * rotDragon * transDragon;
 		if (g_pBattleDragonModel) {
 			ModelDraw(g_pBattleDragonModel, worldDragon, { 0.0f, 0.0f, 1.0f, 1.0f });
 		} else {
@@ -626,7 +656,7 @@ void Battle_Draw()
 		// クモ
 		XMMATRIX rotSpider = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(-XM_PIDIV2);
 		XMMATRIX transSpider = XMMatrixTranslation(3.0f, -0.5f, 5.0f);
-		XMMATRIX worldSpider = rotSpider * transSpider;
+		XMMATRIX worldSpider = bossScaleMtx * rotSpider * transSpider;
 		if (g_pBattleSpiderModel) {
 			ModelDraw(g_pBattleSpiderModel, worldSpider, { 0.1f, 0.1f, 0.1f, 1.0f });
 		} else {
@@ -640,7 +670,7 @@ void Battle_Draw()
 		// ロボット（プレイヤー方向 = -X を向く）
 		XMMATRIX rotRobot = XMMatrixRotationY(XM_PI);
 		XMMATRIX transRobot = XMMatrixTranslation(2.0f, -0.5f, 5.0f);
-		XMMATRIX worldRobot = rotRobot * transRobot;
+		XMMATRIX worldRobot = bossScaleMtx * rotRobot * transRobot;
 		if (g_pBattleRobotModel) {
 			ModelDraw(g_pBattleRobotModel, worldRobot, { 0.4f, 0.4f, 0.5f, 1.0f });
 		} else {
@@ -652,10 +682,10 @@ void Battle_Draw()
 	case MONSTER_KIND_EYEBALL:
 	{
 		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.5f, 0.1f, 0.1f, 1.0f });
-		// 目玉（プレイヤー方向 = -X を向く）
+		// 目玉
 		XMMATRIX rotEye = XMMatrixRotationZ(XM_PIDIV2);
 		XMMATRIX transEye = XMMatrixTranslation(2.0f, 0.5f, 5.0f);
-		XMMATRIX worldEye = rotEye * transEye;
+		XMMATRIX worldEye = bossScaleMtx * rotEye * transEye;
 		if (g_pBattleEyeballModel) {
 			ModelDraw(g_pBattleEyeballModel, worldEye, { 0.8f, 0.1f, 0.1f, 1.0f });
 		} else {
@@ -754,6 +784,24 @@ void Battle_Draw()
 		g_pEnemyHeaderText->Draw();
 	}
 
+	// ==== 交代フェーズオーバーレイ ============================================
+	if (g_BattlePhase == PHASE_SWAP) {
+		float ow = (float)Direct3D_GetBackBufferWidth();
+		float oh = (float)Direct3D_GetBackBufferHeight();
+		Sprite_Draw(g_WhiteTexture,
+			ow * 0.25f, oh * 0.35f,
+			ow * 0.5f, oh * 0.3f,
+			{ 0.0f, 0.0f, 0.0f, 0.75f });
+		if (g_pResultText) {
+			g_pResultText->Clear();
+			char rbuf[128];
+			snprintf(rbuf, sizeof(rbuf), "Fighter Down!\nNext: %s Lv.%d\n[Tab]Switch [Space]Go",
+				Party_GetFighterName(), Party_GetFighterLevel());
+			g_pResultText->SetText(rbuf, { 1.0f, 0.8f, 0.0f, 1.0f });
+			g_pResultText->Draw();
+		}
+	}
+
 	// ==== 勝敗リザルトオーバーレイ ============================================
 	if (g_BattlePhase == PHASE_WIN || g_BattlePhase == PHASE_LOSE) {
 		float ow = (float)Direct3D_GetBackBufferWidth();
@@ -791,7 +839,7 @@ void Battle_Draw()
 	for (int i = 0; i < 10; i++) {
 		if (g_BattleBullets[i].active) {
 			XMMATRIX scale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-			XMMATRIX trans = XMMatrixTranslation(g_BattleBullets[i].x, 0.0f, 5.0f);
+			XMMATRIX trans = XMMatrixTranslation(g_BattleBullets[i].x, -0.3f, 5.0f);
 			Cube_Draw(g_MonsterTexDragon, scale * trans);
 		}
 	}
@@ -800,7 +848,7 @@ void Battle_Draw()
 	for (int i = 0; i < 5; i++) {
 		if (g_EnemyBullets[i].active) {
 			XMMATRIX scale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-			XMMATRIX trans = XMMatrixTranslation(g_EnemyBullets[i].x, 0.0f, 5.0f);
+			XMMATRIX trans = XMMatrixTranslation(g_EnemyBullets[i].x, -0.3f, 5.0f);
 			Cube_Draw(g_MonsterTexWolf, scale * trans);
 		}
 	}

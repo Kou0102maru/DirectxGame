@@ -14,8 +14,8 @@
 #include "gameclear.h"
 
 
-// static Scene g_Scene = SCENE_TITLE;
-static Scene g_Scene = SCENE_GAME;
+ static Scene g_Scene = SCENE_TITLE;
+//static Scene g_Scene = SCENE_GAME;
 static Scene g_SceneNext = g_Scene;
 
 bool g_ReturnFromBattle = false;

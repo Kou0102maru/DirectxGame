@@ -7,6 +7,7 @@
 
 ==============================================================================*/
 #ifndef MONSTER_H
+
 #define MONSTER_H
 
 #include <DirectXMath.h>
@@ -107,6 +108,9 @@ protected:
     // スキル
     SkillId                 m_skills[4]{ SKILL_NONE, SKILL_NONE, SKILL_NONE, SKILL_NONE };
 
+    // フィールド表示スケール（ボス用拡大）
+    float                   m_field_scale{ 1.0f };
+
     // 仲間かどうか
     bool                    m_is_party_member{ false };
 
@@ -159,6 +163,8 @@ public:
 
     // セッター
     void SetPosition(const DirectX::XMFLOAT3& pos) { m_position = pos; }
+    void SetFieldScale(float s) { m_field_scale = s; }
+    float GetFieldScale() const { return m_field_scale; }
 
 protected:
     void ChangeState(State* pNext);

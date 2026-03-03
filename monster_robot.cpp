@@ -88,13 +88,15 @@ void MonsterRobot::StateMarch::Draw() const
     Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.3f, 0.3f, 0.4f, 1.0f });
 
     if (s_pModel) {
+        float s = m_pOwner->GetFieldScale();
+        XMMATRIX scale = XMMatrixScaling(s, s, s);
         float yAngle = atan2f(-m_pOwner->m_front.z, m_pOwner->m_front.x);
         XMMATRIX rot = XMMatrixRotationY(yAngle);
         XMMATRIX trans = XMMatrixTranslation(
             m_pOwner->m_position.x,
             m_pOwner->m_position.y,
             m_pOwner->m_position.z);
-        XMMATRIX world = rot * trans;
+        XMMATRIX world = scale * rot * trans;
         ModelDraw(s_pModel, world, { 0.4f, 0.4f, 0.5f, 1.0f });
     } else {
         extern int g_MonsterTexRobot;
@@ -145,13 +147,15 @@ void MonsterRobot::StateChase::Draw() const
     Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.3f, 0.3f, 0.4f, 1.0f });
 
     if (s_pModel) {
+        float s = m_pOwner->GetFieldScale();
+        XMMATRIX scale = XMMatrixScaling(s, s, s);
         float yAngle = atan2f(-m_pOwner->m_front.z, m_pOwner->m_front.x);
         XMMATRIX rot = XMMatrixRotationY(yAngle);
         XMMATRIX trans = XMMatrixTranslation(
             m_pOwner->m_position.x,
             m_pOwner->m_position.y,
             m_pOwner->m_position.z);
-        XMMATRIX world = rot * trans;
+        XMMATRIX world = scale * rot * trans;
         ModelDraw(s_pModel, world, { 0.4f, 0.4f, 0.5f, 1.0f });
     } else {
         extern int g_MonsterTexRobot;

@@ -13,6 +13,32 @@ static PartyMonster g_Party[PARTY_MAX]{};
 static int g_PartyCount = 0;
 static int g_ActiveFighter = -1;  // -1 = プレイヤー本人
 
+// パーティモンスターのレベルアップ処理
+static void PartyMonster_LevelUp(PartyMonster& pm)
+{
+    pm.level++;
+    const MonsterBaseParam* base = Monster_GetBaseParam(pm.kind);
+    if (base) {
+        // レベルごとにベースステータスの10%ずつ成長
+        pm.hp_max += (int)(base->base_hp  * 0.1f);
+        pm.atk    += (int)(base->base_atk * 0.1f);
+        pm.def    += (int)(base->base_def * 0.1f);
+        // レベルアップ時はHP全回復
+        pm.hp = pm.hp_max;
+    }
+    pm.exp_next = pm.level * pm.level * 10;
+}
+
+// パーティモンスターに経験値を付与（レベルアップ判定付き）
+static void PartyMonster_GainExp(PartyMonster& pm, int exp)
+{
+    pm.exp += exp;
+    while (pm.exp >= pm.exp_next) {
+        pm.exp = 0;  // レベルアップ時に累積経験値を0にリセット
+        PartyMonster_LevelUp(pm);
+    }
+}
+
 void Party_Initialize()
 {
     g_PartyCount = 0;
@@ -53,6 +79,8 @@ bool Party_Add(MonsterKind kind, int level)
     pm.hp     = pm.hp_max;  // 加入時はHP満タン
     pm.atk    = (int)(base->base_atk * growth);
     pm.def    = (int)(base->base_def * growth);
+    pm.exp    = 0;
+    pm.exp_next = level * level * 10;
 
     g_Party[g_PartyCount] = pm;
     g_PartyCount++;
@@ -100,18 +128,21 @@ void Party_CycleActiveFighter()
         g_ActiveFighter = -1;
         return;
     }
-    g_ActiveFighter++;
-    if (g_ActiveFighter >= g_PartyCount) {
-        g_ActiveFighter = -1;  // パーティ末尾を超えたらプレイヤーに戻る
-    }
-    // HP0のモンスターはスキップ
-    while (g_ActiveFighter >= 0 && g_Party[g_ActiveFighter].hp <= 0) {
+    int totalSlots = g_PartyCount + 1;  // プレイヤー(-1) + パーティ(0..N-1)
+    for (int attempts = 0; attempts < totalSlots; attempts++) {
         g_ActiveFighter++;
         if (g_ActiveFighter >= g_PartyCount) {
-            g_ActiveFighter = -1;
-            break;
+            g_ActiveFighter = -1;  // パーティ末尾を超えたらプレイヤーに戻る
+        }
+        // 生存チェック（HP0のメンバーはスキップ）
+        if (g_ActiveFighter == -1) {
+            if (Player_GetHp() > 0) return;  // プレイヤー生存
+        } else {
+            if (g_Party[g_ActiveFighter].hp > 0) return;  // モンスター生存
         }
     }
+    // 全員倒れている場合はプレイヤーに戻す
+    g_ActiveFighter = -1;
 }
 
 bool Party_IsPlayerActive()
@@ -168,9 +199,20 @@ void Party_FighterGainExp(int exp)
         Player_GainExp(exp);
         return;
     }
-    // パーティモンスターはレベルアップなし（将来拡張用）
+    // アクティブモンスターに経験値付与（レベルアップあり）
+    PartyMonster_GainExp(g_Party[g_ActiveFighter], exp);
     // プレイヤーにも半分の経験値を付与
     Player_GainExp(exp / 2);
+}
+
+void Party_AllGainExp(int exp)
+{
+    // プレイヤーに経験値付与
+    Player_GainExp(exp);
+    // 全パーティモンスターに経験値付与（レベルアップあり）
+    for (int i = 0; i < g_PartyCount; i++) {
+        PartyMonster_GainExp(g_Party[i], exp);
+    }
 }
 
 const char* Party_GetFighterName()
@@ -183,4 +225,23 @@ MonsterKind Party_GetFighterKind()
 {
     if (g_ActiveFighter == -1) return MONSTER_KIND_MAX;
     return g_Party[g_ActiveFighter].kind;
+}
+
+//=============================================================================
+// 生存チェック・交代
+//=============================================================================
+bool Party_HasAnyAliveFighter()
+{
+    if (Player_GetHp() > 0) return true;
+    for (int i = 0; i < g_PartyCount; i++) {
+        if (g_Party[i].hp > 0) return true;
+    }
+    return false;
+}
+
+bool Party_SwitchToNextAlive()
+{
+    if (!Party_HasAnyAliveFighter()) return false;
+    Party_CycleActiveFighter();
+    return true;
 }

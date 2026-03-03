@@ -91,13 +91,15 @@ void MonsterDragon::StateCircle::Draw() const
     Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
 
     // is•ûŒü‚ðŒü‚­‚æ‚¤ Y Ž²‰ñ“]‚ðŒvŽZibBlender‚ÅÀ•WŒn•ÏŠ·Ï‚Ýj
+    float s = m_pOwner->GetFieldScale();
+    XMMATRIX scale = XMMatrixScaling(s, s, s);
     float angle = -atan2f(m_pOwner->m_front.z, m_pOwner->m_front.x) + XMConvertToRadians(270);
     XMMATRIX rotY   = XMMatrixRotationY(angle);
     XMMATRIX trans = XMMatrixTranslation(
         m_pOwner->m_position.x,
         m_pOwner->m_position.y,
         m_pOwner->m_position.z);
-    XMMATRIX world = rotY * trans;
+    XMMATRIX world = scale * rotY * trans;
 
     if (g_pDragonFieldModel) {
         ModelDraw(g_pDragonFieldModel, world, { 0.0f, 0.0f, 1.0f, 1.0f });
@@ -146,13 +148,15 @@ void MonsterDragon::StateDive::Draw() const
     Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
 
     // is•ûŒü‚ðŒü‚­‚æ‚¤ Y Ž²‰ñ“]‚ðŒvŽZibBlender‚ÅÀ•WŒn•ÏŠ·Ï‚Ýj
+    float s = m_pOwner->GetFieldScale();
+    XMMATRIX scale = XMMatrixScaling(s, s, s);
     float angle = -atan2f(m_pOwner->m_front.z, m_pOwner->m_front.x) + XMConvertToRadians(270);
     XMMATRIX rotY   = XMMatrixRotationY(angle);
     XMMATRIX trans = XMMatrixTranslation(
         m_pOwner->m_position.x,
         m_pOwner->m_position.y,
         m_pOwner->m_position.z);
-    XMMATRIX world = rotY * trans;
+    XMMATRIX world = scale * rotY * trans;
 
     if (g_pDragonFieldModel) {
         ModelDraw(g_pDragonFieldModel, world, { 0.0f, 0.0f, 1.0f, 1.0f });

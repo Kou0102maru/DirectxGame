@@ -12,51 +12,55 @@
 #include "sprite.h"
 #include "texture.h"
 #include "debug_text.h"
+#include "key_logger.h"
+#include <cstdio>
 
-static double g_Timer = 0.0;
-static constexpr double GAMEOVER_DURATION = 3.0;
-
-static hal::DebugText* g_pGameOverText = nullptr;
-static int g_WhiteTexture = -1;
+static int g_GameOverBgTexId = -1;  // ゲームオーバー背景画像
+static int g_WhiteTex = -1;
+static int g_GOSelect = 0;  // 0=Retry, 1=Title
+static hal::DebugText* g_pMenuText = nullptr;
 
 void GameOver_Initialize()
 {
-    g_Timer = GAMEOVER_DURATION;
+    g_GameOverBgTexId = Texture_Load(L"resource/texture/gameover.png");
+    g_WhiteTex = Texture_Load(L"resource/texture/white.png");
+    g_GOSelect = 0;
 
-    float screenW = (float)Direct3D_GetBackBufferWidth();
-    float screenH = (float)Direct3D_GetBackBufferHeight();
+    float sw = (float)Direct3D_GetBackBufferWidth();
+    float sh = (float)Direct3D_GetBackBufferHeight();
 
-    g_WhiteTexture = Texture_Load(L"resource/texture/white.png");
-
-    auto* dev = Direct3D_GetDevice();
-    auto* ctx = Direct3D_GetContext();
-    const wchar_t* fontTex = L"resource/texture/consolab_ascii_512.png";
-
-    const float CHAR_W = 20.0f;
-    const float LINE_H = 36.0f;
-    float textX = screenW * 0.5f - CHAR_W * 5.0f;
-    float textY = screenH * 0.5f - LINE_H * 0.5f;
-
-    delete g_pGameOverText;
-    g_pGameOverText = new hal::DebugText(
-        dev, ctx, fontTex,
-        (UINT)screenW, (UINT)screenH,
-        textX, textY,
-        1, 0, LINE_H, CHAR_W
+    g_pMenuText = new hal::DebugText(
+        Direct3D_GetDevice(), Direct3D_GetContext(),
+        L"resource/texture/consolab_ascii_512.png",
+        (UINT)sw, (UINT)sh,
+        sw * 0.5f - 80.0f, sh * 0.65f,
+        4, 0, 45.0f, 20.0f
     );
 }
 
 void GameOver_Finalize()
 {
-    delete g_pGameOverText;
-    g_pGameOverText = nullptr;
+    if (g_pMenuText) { delete g_pMenuText; g_pMenuText = nullptr; }
 }
 
 void GameOver_Update(double elapsed_time)
 {
-    g_Timer -= elapsed_time;
-    if (g_Timer <= 0.0) {
-        Scene_Change(SCENE_TITLE);
+    // 上下キーでメニュー選択
+    if (KeyLogger_IsTrigger(KK_UP)) {
+        g_GOSelect--;
+        if (g_GOSelect < 0) g_GOSelect = 1;
+    }
+    if (KeyLogger_IsTrigger(KK_DOWN)) {
+        g_GOSelect++;
+        if (g_GOSelect > 1) g_GOSelect = 0;
+    }
+    // Enter で決定
+    if (KeyLogger_IsTrigger(KK_ENTER)) {
+        if (g_GOSelect == 0) {
+            Scene_Change(SCENE_GAME);   // Retry
+        } else {
+            Scene_Change(SCENE_TITLE);  // Title
+        }
     }
 }
 
@@ -68,17 +72,34 @@ void GameOver_Draw()
     Direct3D_SetDepthEnable(false);
     Sprite_Begin();
 
-    float screenW = (float)Direct3D_GetBackBufferWidth();
-    float screenH = (float)Direct3D_GetBackBufferHeight();
+    float sw = (float)Direct3D_GetBackBufferWidth();
+    float sh = (float)Direct3D_GetBackBufferHeight();
 
-    // 黒背景
-    Sprite_Draw(g_WhiteTexture, 0, 0, screenW, screenH, { 0.0f, 0.0f, 0.0f, 1.0f });
+    // ゲームオーバー背景画像を全画面描画
+    Sprite_Draw(g_GameOverBgTexId, 0.0f, 0.0f, sw, sh);
 
-    // "GAME OVER" テキスト（赤）
-    if (g_pGameOverText) {
-        g_pGameOverText->Clear();
-        g_pGameOverText->SetText("GAME OVER", { 1.0f, 0.2f, 0.2f, 1.0f });
-        g_pGameOverText->Draw();
+    // メニューボタン
+    float menuX = sw * 0.5f - 80.0f;
+    float menuY = sh * 0.65f;
+    float btnW = 220.0f;
+    float btnH = 38.0f;
+    float lineH = 45.0f;
+
+    // 選択中のボタン背景ハイライト
+    Sprite_Draw(g_WhiteTex,
+        menuX - 15.0f, menuY + g_GOSelect * lineH - 3.0f,
+        btnW, btnH,
+        { 1.0f, 1.0f, 0.0f, 0.3f });
+
+    // メニューテキスト
+    if (g_pMenuText) {
+        g_pMenuText->Clear();
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%c Retry\n%c Title",
+            g_GOSelect == 0 ? '>' : ' ',
+            g_GOSelect == 1 ? '>' : ' ');
+        g_pMenuText->SetText(buf, { 1.0f, 1.0f, 1.0f, 1.0f });
+        g_pMenuText->Draw();
     }
 
     Direct3D_SetDepthEnable(true);

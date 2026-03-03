@@ -80,6 +80,8 @@ void MonsterEyeball::StateFloat::Draw() const
 
     if (s_pModel) {
         // プレイヤー方向を常に見る（目玉らしい挙動）
+        float s = m_pOwner->GetFieldScale();
+        XMMATRIX scale = XMMatrixScaling(s, s, s);
         XMFLOAT3 player_pos = Player_GetPosition();
         XMVECTOR to_player = XMLoadFloat3(&player_pos) - XMLoadFloat3(&m_pOwner->m_position);
         XMFLOAT3 dir;
@@ -90,7 +92,7 @@ void MonsterEyeball::StateFloat::Draw() const
             m_pOwner->m_position.x,
             m_pOwner->m_position.y,
             m_pOwner->m_position.z);
-        XMMATRIX world = rot * trans;
+        XMMATRIX world = scale * rot * trans;
         ModelDraw(s_pModel, world, { 0.8f, 0.1f, 0.1f, 1.0f });
     } else {
         extern int g_MonsterTexEyeball;
@@ -122,8 +124,8 @@ void MonsterEyeball::StateChase::Update(double elapsed_time)
         position += direction * CHASE_SPEED * (float)elapsed_time;
         XMStoreFloat3(&m_pOwner->m_position, position);
 
-        // 浮遊高度を維持（地面にめり込まない）
-        m_pOwner->m_position.y = 2.5f;
+        // 浮遊高度を維持（ボスでも当たれる高さ）
+        m_pOwner->m_position.y = 1.0f;
 
         XMStoreFloat3(&m_pOwner->m_front, direction);
 
@@ -142,13 +144,15 @@ void MonsterEyeball::StateChase::Draw() const
     Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.5f, 0.1f, 0.1f, 1.0f });
 
     if (s_pModel) {
+        float s = m_pOwner->GetFieldScale();
+        XMMATRIX scale = XMMatrixScaling(s, s, s);
         float yAngle = atan2f(m_pOwner->m_front.z, -m_pOwner->m_front.x);
         XMMATRIX rot = XMMatrixRotationZ(XM_PIDIV2) * XMMatrixRotationY(yAngle);
         XMMATRIX trans = XMMatrixTranslation(
             m_pOwner->m_position.x,
             m_pOwner->m_position.y,
             m_pOwner->m_position.z);
-        XMMATRIX world = rot * trans;
+        XMMATRIX world = scale * rot * trans;
         ModelDraw(s_pModel, world, { 0.8f, 0.1f, 0.1f, 1.0f });
     } else {
         extern int g_MonsterTexEyeball;

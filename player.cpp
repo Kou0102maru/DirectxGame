@@ -18,12 +18,21 @@ using namespace DirectX;
 #include "map.h"
 #include "bullet.h"
 #include"cirel_shadow.h"
+#include "party.h"
+#include "monster.h"
 
 
 static XMFLOAT3 g_PlayerPosition{};
 static XMFLOAT3 g_PlayerFront{ 0.0f, 0.0f, 1.0f };
 static XMFLOAT3 g_PlayerVelocity{};
 static MODEL* g_pPlayerModel{ nullptr };
+
+// フィールド用パーティモンスターモデル
+static MODEL* g_pFieldSpiderModel  = nullptr;
+static MODEL* g_pFieldWolfModel    = nullptr;
+static MODEL* g_pFieldDragonModel  = nullptr;
+static MODEL* g_pFieldRobotModel   = nullptr;
+static MODEL* g_pFieldEyeballModel = nullptr;
 static bool g_IsJump = false;
 static constexpr double SHOT_INTERVAL = 0.25;
 static double g_Rapid_Time = 0.0;
@@ -57,12 +66,27 @@ void Player_Initialize(const XMFLOAT3& position, const XMFLOAT3& front)
 
 	g_pPlayerModel = ModelLoad("resource/model/slime.fbx", 0.8f);
 
-
+	// パーティモンスター用フィールドモデルのロード
+	if (g_pFieldSpiderModel)  { ModelRelease(g_pFieldSpiderModel);  g_pFieldSpiderModel  = nullptr; }
+	if (g_pFieldWolfModel)    { ModelRelease(g_pFieldWolfModel);    g_pFieldWolfModel    = nullptr; }
+	if (g_pFieldDragonModel)  { ModelRelease(g_pFieldDragonModel);  g_pFieldDragonModel  = nullptr; }
+	if (g_pFieldRobotModel)   { ModelRelease(g_pFieldRobotModel);   g_pFieldRobotModel   = nullptr; }
+	if (g_pFieldEyeballModel) { ModelRelease(g_pFieldEyeballModel); g_pFieldEyeballModel = nullptr; }
+	g_pFieldSpiderModel  = ModelLoad("resource/model/sp.fbx", 0.15f, false);
+	g_pFieldWolfModel    = ModelLoad("resource/model/Wolf.fbx", 3.0f, true);
+	g_pFieldDragonModel  = ModelLoad("resource/model/Dragon.fbx", 0.2f, true);
+	g_pFieldRobotModel   = ModelLoad("resource/model/robot.fbx", 0.3f, true);
+	g_pFieldEyeballModel = ModelLoad("resource/model/eyeball.fbx", 0.3f, true);
 }
 
 void Player_Finalize()
 {
 	ModelRelease(g_pPlayerModel);
+	if (g_pFieldSpiderModel)  { ModelRelease(g_pFieldSpiderModel);  g_pFieldSpiderModel  = nullptr; }
+	if (g_pFieldWolfModel)    { ModelRelease(g_pFieldWolfModel);    g_pFieldWolfModel    = nullptr; }
+	if (g_pFieldDragonModel)  { ModelRelease(g_pFieldDragonModel);  g_pFieldDragonModel  = nullptr; }
+	if (g_pFieldRobotModel)   { ModelRelease(g_pFieldRobotModel);   g_pFieldRobotModel   = nullptr; }
+	if (g_pFieldEyeballModel) { ModelRelease(g_pFieldEyeballModel); g_pFieldEyeballModel = nullptr; }
 }
 
 void Player_Update(double elapsed_time)
@@ -98,6 +122,13 @@ void Player_Update(double elapsed_time)
 				g_IsJump = false;
 			}
 		}
+	}
+
+	// メッシュフィールド地面との接地判定（Y=0が地面）
+	if (XMVectorGetY(position) < 0.0f) {
+		position = XMVectorSetY(position, 0.0f);
+		velocity *= { 1.0f, 0.0f, 1.0f };
+		g_IsJump = false;
 	}
 
 	XMVECTOR direction{};
@@ -223,10 +254,63 @@ void Player_Draw()
 
 	float angle = -atan2f(g_PlayerFront.z, g_PlayerFront.x) + XMConvertToRadians(270);
 
-	XMMATRIX r = XMMatrixRotationY(angle);
-	XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.65f, g_PlayerPosition.z);
-	XMMATRIX world = r * t;
-	ModelDraw(g_pPlayerModel, world);
+	MonsterKind fighterKind = Party_GetFighterKind();
+
+	if (fighterKind == MONSTER_KIND_MAX) {
+		// プレイヤー本人：スライムモデル
+		XMMATRIX r = XMMatrixRotationY(angle);
+		XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.65f, g_PlayerPosition.z);
+		ModelDraw(g_pPlayerModel, r * t);
+	} else {
+		// パーティモンスターのモデルを表示
+		switch (fighterKind) {
+		case MONSTER_KIND_SPIDER:
+		{
+			XMMATRIX baseRot = XMMatrixRotationX(XM_PIDIV2);
+			XMMATRIX faceRot = XMMatrixRotationY(angle + XM_PI);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.5f, g_PlayerPosition.z);
+			if (g_pFieldSpiderModel) ModelDraw(g_pFieldSpiderModel, baseRot * faceRot * t, { 0.1f, 0.1f, 0.1f, 1.0f });
+			break;
+		}
+		case MONSTER_KIND_WOLF:
+		{
+			XMMATRIX r = XMMatrixRotationY(angle);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.0f, g_PlayerPosition.z);
+			if (g_pFieldWolfModel) ModelDraw(g_pFieldWolfModel, r * t);
+			break;
+		}
+		case MONSTER_KIND_DRAGON:
+		{
+			XMMATRIX r = XMMatrixRotationY(angle + XM_PIDIV2);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y - 1.0f, g_PlayerPosition.z);
+			if (g_pFieldDragonModel) ModelDraw(g_pFieldDragonModel, r * t, { 0.0f, 0.0f, 1.0f, 1.0f });
+			break;
+		}
+		case MONSTER_KIND_ROBOT:
+		{
+			XMMATRIX r = XMMatrixRotationY(angle + XM_PIDIV2);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 1.5f, g_PlayerPosition.z);
+			if (g_pFieldRobotModel) ModelDraw(g_pFieldRobotModel, r * t, { 0.4f, 0.4f, 0.5f, 1.0f });
+			break;
+		}
+		case MONSTER_KIND_EYEBALL:
+		{
+			XMMATRIX baseRot = XMMatrixRotationZ(-XM_PIDIV2);
+			XMMATRIX faceRot = XMMatrixRotationY(angle + XM_PIDIV2);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 1.0f, g_PlayerPosition.z);
+			if (g_pFieldEyeballModel) ModelDraw(g_pFieldEyeballModel, baseRot * faceRot * t, { 0.8f, 0.1f, 0.1f, 1.0f });
+			break;
+		}
+		default:
+		{
+			// フォールバック：スライムモデル
+			XMMATRIX r = XMMatrixRotationY(angle);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.65f, g_PlayerPosition.z);
+			ModelDraw(g_pPlayerModel, r * t);
+			break;
+		}
+		}
+	}
 
 	CircleShadow_Draw(g_PlayerPosition);
 }

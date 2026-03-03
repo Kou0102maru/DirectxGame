@@ -21,6 +21,8 @@ struct PartyMonster
     int hp_max;
     int atk;
     int def;
+    int exp;      // 現在の経験値
+    int exp_next; // 次のレベルアップに必要な経験値
 };
 
 void Party_Initialize();
@@ -46,7 +48,12 @@ int  Party_GetFighterDef();
 int  Party_GetFighterLevel();
 void Party_FighterTakeDamage(int dmg);
 void Party_FighterGainExp(int exp);
+void Party_AllGainExp(int exp);  // プレイヤー＋全パーティモンスターに経験値を付与
 const char* Party_GetFighterName();
 MonsterKind Party_GetFighterKind();  // プレイヤー時は MONSTER_KIND_MAX
+
+// 生存チェック・交代用
+bool Party_HasAnyAliveFighter();   // プレイヤー含め誰か生存しているか
+bool Party_SwitchToNextAlive();    // 次の生存者に切替（誰もいなければfalse）
 
 #endif // PARTY_H
