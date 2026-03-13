@@ -48,13 +48,24 @@ static int g_PlayerExpNext = 10;
 static void Player_LevelUp()
 {
 	g_PlayerLevel++;
-	g_PlayerHpMax += 10;
-	g_PlayerAtk += 2;
-	g_PlayerDef += 1;
+	g_PlayerHpMax += 15;
+	g_PlayerAtk += 3;
+	g_PlayerDef += 2;
 	g_PlayerExpNext = g_PlayerLevel * g_PlayerLevel * 10;
-	g_PlayerHp = g_PlayerHpMax;
+	g_PlayerHp = g_PlayerHpMax;  // レベルアップ時HP全回復
 }
 
+
+void Player_ResetStats()
+{
+	g_PlayerLevel = 1;
+	g_PlayerHp = 100;
+	g_PlayerHpMax = 100;
+	g_PlayerAtk = 10;
+	g_PlayerDef = 5;
+	g_PlayerExp = 0;
+	g_PlayerExpNext = 10;
+}
 
 void Player_Initialize(const XMFLOAT3& position, const XMFLOAT3& front)
 {
@@ -244,7 +255,7 @@ void Player_Update(double elapsed_time)
 
 void Player_Draw()
 {
-	Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.3f, 0.25f, 0.2f, 1.0f });
+	Light_SetSpecularWorld(PlayerCamera_GetPosition(), 1.0f, { 0.15f, 0.12f, 0.1f, 1.0f });
 
 	float angle = -atan2f(g_PlayerFront.z, g_PlayerFront.x) + XMConvertToRadians(270);
 
@@ -262,7 +273,7 @@ void Player_Draw()
 		{
 			XMMATRIX baseRot = XMMatrixRotationX(XM_PIDIV2);
 			XMMATRIX faceRot = XMMatrixRotationY(angle + XM_PI);
-			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.5f, g_PlayerPosition.z);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.0f, g_PlayerPosition.z);
 			if (g_pFieldSpiderModel) ModelDraw(g_pFieldSpiderModel, baseRot * faceRot * t, { 0.1f, 0.1f, 0.1f, 1.0f });
 			break;
 		}
@@ -283,7 +294,7 @@ void Player_Draw()
 		case MONSTER_KIND_ROBOT:
 		{
 			XMMATRIX r = XMMatrixRotationY(angle + XM_PIDIV2);
-			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 1.5f, g_PlayerPosition.z);
+			XMMATRIX t = XMMatrixTranslation(g_PlayerPosition.x, g_PlayerPosition.y + 0.9f, g_PlayerPosition.z);
 			if (g_pFieldRobotModel) ModelDraw(g_pFieldRobotModel, r * t, { 0.4f, 0.4f, 0.5f, 1.0f });
 			break;
 		}
@@ -311,7 +322,7 @@ void Player_Draw()
 
 void Player_DepthDraw()
 {
-	Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.3f, 0.25f, 0.2f, 1.0f });
+	Light_SetSpecularWorld(PlayerCamera_GetPosition(), 1.0f, { 0.15f, 0.12f, 0.1f, 1.0f });
 
 	float angle = -atan2f(g_PlayerFront.z, g_PlayerFront.x) + XMConvertToRadians(270);
 

@@ -76,7 +76,7 @@ void MonsterEyeball::StateFloat::Update(double elapsed_time)
 
 void MonsterEyeball::StateFloat::Draw() const
 {
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.5f, 0.1f, 0.1f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.25f, 0.05f, 0.05f, 1.0f });
 
     if (s_pModel) {
         // プレイヤー方向を常に見る（目玉らしい挙動）
@@ -141,7 +141,7 @@ void MonsterEyeball::StateChase::Update(double elapsed_time)
 
 void MonsterEyeball::StateChase::Draw() const
 {
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.5f, 0.1f, 0.1f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.25f, 0.05f, 0.05f, 1.0f });
 
     if (s_pModel) {
         float s = m_pOwner->GetFieldScale();

@@ -20,6 +20,7 @@ static constexpr int NUM_INDEX = 3 * 2 * 6; // インデックス数
 
 static ID3D11Buffer* g_pVertexBuffer = nullptr; // 頂点バッファ
 static ID3D11Buffer* g_pIndexBuffer = nullptr; // インデックスバッファ
+static ID3D11Buffer* g_pWallVertexBuffer = nullptr; // 壁用動的頂点バッファ（UVタイリング）
 
 
 // 注意！初期化で外部から設定されるもの。Release不要。
@@ -112,15 +113,26 @@ void Cube_Initialize(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 
 	// インデックスバッファ作成
 	bd.ByteWidth = sizeof(unsigned short) * NUM_INDEX; // sizeof(g_CubeIndex);
-	bd.BindFlags = D3D11_BIND_INDEX_BUFFER; 
+	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 
 	sd.pSysMem = g_CubeIndex;
 
 	g_pDevice->CreateBuffer(&bd, &sd, &g_pIndexBuffer);
+
+	// 壁用動的頂点バッファ作成（UVタイリング用）
+	{
+		D3D11_BUFFER_DESC wbd = {};
+		wbd.Usage = D3D11_USAGE_DYNAMIC;
+		wbd.ByteWidth = sizeof(Vertex3d) * NUM_VERTEX;
+		wbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		wbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		g_pDevice->CreateBuffer(&wbd, nullptr, &g_pWallVertexBuffer);
+	}
 }
 
 void Cube_Finalize(void)
 {
+	SAFE_RELEASE(g_pWallVertexBuffer);
 	SAFE_RELEASE(g_pIndexBuffer);
 	SAFE_RELEASE(g_pVertexBuffer);
 }
@@ -151,6 +163,70 @@ void Cube_Draw(int texId, const DirectX::XMMATRIX& mtxWorld)
 	Shader3d_SetWorldMatrix(mtxWorld);
 
 	// ポリゴン描画命令発行
+	g_pContext->DrawIndexed(NUM_INDEX, 0, 0);
+}
+
+void Cube_DrawTiled(int texId, const DirectX::XMMATRIX& mtxWorld, float sizeX, float sizeY, float sizeZ)
+{
+	// タイルサイズ（この単位ごとにテクスチャが1回繰り返される）
+	const float T = 4.0f;
+	float txFB = sizeX / T;  // 前後面の水平タイル数
+	float tyFB = sizeY / T;  // 前後面の垂直タイル数
+	float txLR = sizeZ / T;  // 左右面の水平タイル数
+	float tyLR = sizeY / T;  // 左右面の垂直タイル数
+	float txTB = sizeX / T;  // 上下面の水平タイル数
+	float tyTB = sizeZ / T;  // 上下面の垂直タイル数
+
+	Vertex3d v[NUM_VERTEX] = {
+		// 前 (Z=-0.5)
+		{{-0.5f,  0.5f, -0.5f}, {0,0,-1}, {1,1,1,1}, {0,    0   }},
+		{{ 0.5f, -0.5f, -0.5f}, {0,0,-1}, {1,1,1,1}, {txFB, tyFB}},
+		{{-0.5f, -0.5f, -0.5f}, {0,0,-1}, {1,1,1,1}, {0,    tyFB}},
+		{{ 0.5f,  0.5f, -0.5f}, {0,0,-1}, {1,1,1,1}, {txFB, 0   }},
+		// 右 (X=+0.5)
+		{{ 0.5f,  0.5f, -0.5f}, {1,0,0}, {1,1,1,1}, {0,    0   }},
+		{{ 0.5f, -0.5f,  0.5f}, {1,0,0}, {1,1,1,1}, {txLR, tyLR}},
+		{{ 0.5f, -0.5f, -0.5f}, {1,0,0}, {1,1,1,1}, {0,    tyLR}},
+		{{ 0.5f,  0.5f,  0.5f}, {1,0,0}, {1,1,1,1}, {txLR, 0   }},
+		// 奥 (Z=+0.5)
+		{{ 0.5f,  0.5f,  0.5f}, {0,0,1}, {1,1,1,1}, {0,    0   }},
+		{{-0.5f, -0.5f,  0.5f}, {0,0,1}, {1,1,1,1}, {txFB, tyFB}},
+		{{ 0.5f, -0.5f,  0.5f}, {0,0,1}, {1,1,1,1}, {0,    tyFB}},
+		{{-0.5f,  0.5f,  0.5f}, {0,0,1}, {1,1,1,1}, {txFB, 0   }},
+		// 左 (X=-0.5)
+		{{-0.5f,  0.5f,  0.5f}, {-1,0,0}, {1,1,1,1}, {0,    0   }},
+		{{-0.5f, -0.5f, -0.5f}, {-1,0,0}, {1,1,1,1}, {txLR, tyLR}},
+		{{-0.5f, -0.5f,  0.5f}, {-1,0,0}, {1,1,1,1}, {0,    tyLR}},
+		{{-0.5f,  0.5f, -0.5f}, {-1,0,0}, {1,1,1,1}, {txLR, 0   }},
+		// 上 (Y=+0.5)
+		{{-0.5f,  0.5f,  0.5f}, {0,1,0}, {1,1,1,1}, {0,    0   }},
+		{{ 0.5f,  0.5f, -0.5f}, {0,1,0}, {1,1,1,1}, {txTB, tyTB}},
+		{{-0.5f,  0.5f, -0.5f}, {0,1,0}, {1,1,1,1}, {0,    tyTB}},
+		{{ 0.5f,  0.5f,  0.5f}, {0,1,0}, {1,1,1,1}, {txTB, 0   }},
+		// 下 (Y=-0.5)
+		{{ 0.5f, -0.5f,  0.5f}, {0,-1,0}, {1,1,1,1}, {0,    0   }},
+		{{-0.5f, -0.5f, -0.5f}, {0,-1,0}, {1,1,1,1}, {txTB, tyTB}},
+		{{ 0.5f, -0.5f, -0.5f}, {0,-1,0}, {1,1,1,1}, {0,    tyTB}},
+		{{-0.5f, -0.5f,  0.5f}, {0,-1,0}, {1,1,1,1}, {txTB, 0   }},
+	};
+
+	// 動的頂点バッファ更新
+	D3D11_MAPPED_SUBRESOURCE mapped;
+	g_pContext->Map(g_pWallVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+	memcpy(mapped.pData, v, sizeof(v));
+	g_pContext->Unmap(g_pWallVertexBuffer, 0);
+
+	// 描画
+	Shader3d_Begin();
+	Shader3d_SetColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	Texture_SetTexture(texId);
+
+	UINT stride = sizeof(Vertex3d);
+	UINT offset = 0;
+	g_pContext->IASetVertexBuffers(0, 1, &g_pWallVertexBuffer, &stride, &offset);
+	g_pContext->IASetIndexBuffer(g_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	g_pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	Shader3d_SetWorldMatrix(mtxWorld);
 	g_pContext->DrawIndexed(NUM_INDEX, 0, 0);
 }
 

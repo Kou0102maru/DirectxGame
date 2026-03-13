@@ -14,6 +14,7 @@
 #include "player_camera.h"
 #include "texture.h"
 #include "model.h"
+#include "map.h"
 #include <DirectXMath.h>
 using namespace DirectX;
 #include <cstdlib>
@@ -62,7 +63,7 @@ void MonsterWolf::StateRoam::SetNewTarget()
     // ランダムな位置を設定
     float random_x = ((float)rand() / RAND_MAX) * 80.0f - 40.0f;
     float random_z = ((float)rand() / RAND_MAX) * 80.0f - 40.0f;
-    m_target_position = { random_x, 0.5f, random_z };
+    m_target_position = { random_x, 0.0f, random_z };
     m_change_target_time = 0.0;
 }
 
@@ -87,6 +88,9 @@ void MonsterWolf::StateRoam::Update(double elapsed_time)
     XMStoreFloat3(&m_pOwner->m_position, current);
     XMStoreFloat3(&m_pOwner->m_front, direction);
 
+    // 壁との衝突判定
+    Map_CollideWithWalls(m_pOwner->m_position, 0.5f);
+
     // プレイヤーが近づいたら追跡開始
     XMFLOAT3 player_pos = Player_GetPosition();
     XMVECTOR to_player = XMLoadFloat3(&player_pos) - current;
@@ -99,7 +103,7 @@ void MonsterWolf::StateRoam::Update(double elapsed_time)
 
 void MonsterWolf::StateRoam::Draw() const
 {
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.6f, 0.5f, 0.3f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.3f, 0.25f, 0.15f, 1.0f });
 
     // 進行方向を向くよう Y 軸回転を計算（bBlenderで座標系変換済み）
     float s = m_pOwner->GetFieldScale();
@@ -142,8 +146,10 @@ void MonsterWolf::StateChase::Update(double elapsed_time)
         XMStoreFloat3(&m_pOwner->m_front, direction);
 
         // y座標を固定
-        m_pOwner->m_position.y = 0.5f;
-        XMStoreFloat3(&m_pOwner->m_front, direction);
+        m_pOwner->m_position.y = 0.0f;
+
+        // 壁との衝突判定
+        Map_CollideWithWalls(m_pOwner->m_position, 0.5f);
 
         m_give_up_time = 0.0;
     }
@@ -158,7 +164,7 @@ void MonsterWolf::StateChase::Update(double elapsed_time)
 void MonsterWolf::StateChase::Draw() const
 {
     // 追跡中は赤みがかった光
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.6f, 0.5f, 0.3f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.3f, 0.25f, 0.15f, 1.0f });
 
     float s = m_pOwner->GetFieldScale();
     XMMATRIX scale = XMMatrixScaling(s, s, s);

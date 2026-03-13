@@ -75,8 +75,8 @@ void Monster::InitParams(MonsterKind kind, int level)
     m_name  = base->name;
     m_level = level;
 
-    // レベルに応じたパラメータ倍率計算（シンプルな成長曲線）
-    float growth = 1.0f + (level - 1) * 0.1f;
+    // レベルに応じたパラメータ倍率計算（レベルが上がるほど強くなる）
+    float growth = 1.0f + (level - 1) * 0.15f;
     m_hp_max = (int)(base->base_hp  * growth);
     m_mp_max = (int)(base->base_mp  * growth);
     m_atk    = (int)(base->base_atk * growth);
@@ -147,15 +147,15 @@ void Monster::Draw() const
         switch (m_kind) {
         case MONSTER_KIND_SPIDER:
             texture_id = g_MonsterTexSpider;
-            Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.2f, 0.8f, 0.2f, 1.0f });
+            Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.1f, 0.1f, 0.1f, 1.0f });
             break;
         case MONSTER_KIND_WOLF:
             texture_id = g_MonsterTexWolf;
-            Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.6f, 0.5f, 0.3f, 1.0f });
+            Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.3f, 0.25f, 0.15f, 1.0f });
             break;
         case MONSTER_KIND_DRAGON:
             texture_id = g_MonsterTexDragon;
-            Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
+            Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.0f, { 0.0f, 0.0f, 0.0f, 0.0f });
             break;
         default:
             texture_id = g_MonsterTexSpider;
@@ -240,7 +240,7 @@ void Monster::LevelUp()
 
     // ステータス再計算
     const MonsterBaseParam* base = Monster_GetBaseParam(m_kind);
-    float growth = 1.0f + (m_level - 1) * 0.1f;
+    float growth = 1.0f + (m_level - 1) * 0.15f;
 
     int new_hp_max = (int)(base->base_hp  * growth);
     int new_mp_max = (int)(base->base_mp  * growth);

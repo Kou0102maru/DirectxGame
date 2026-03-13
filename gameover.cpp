@@ -78,23 +78,29 @@ void GameOver_Draw()
     float menuX = sw * 0.5f - btnW * 0.5f;
     float menuY = sh * 0.62f;
 
+    // メニュー全体の暗い背景パネル
+    Sprite_Draw(g_WhiteTex,
+        menuX - 20.0f, menuY - 15.0f,
+        btnW + 40.0f, lineH * 2.0f + 10.0f,
+        { 0.0f, 0.0f, 0.0f, 0.6f });
+
     // 選択中のボタン背景ハイライト
     Sprite_Draw(g_WhiteTex,
         menuX - 10.0f, menuY + g_GOSelect * lineH - 5.0f,
         btnW + 20.0f, btnH + 10.0f,
-        { 1.0f, 1.0f, 0.0f, 0.25f });
+        { 0.3f, 0.5f, 1.0f, 0.4f });
 
-    // リトライボタン（選択中=黄色、非選択=薄白）
+    // リトライボタン（選択中=白、非選択=やや暗め）
     if (g_GOSelect == 0)
-        Sprite_Draw(g_BtnRetryTex, menuX, menuY, btnW, btnH, { 1.0f, 1.0f, 0.2f, 1.0f });
+        Sprite_Draw(g_BtnRetryTex, menuX, menuY, btnW, btnH, { 1.0f, 1.0f, 1.0f, 1.0f });
     else
-        Sprite_Draw(g_BtnRetryTex, menuX, menuY, btnW, btnH, { 0.7f, 0.7f, 0.7f, 0.8f });
+        Sprite_Draw(g_BtnRetryTex, menuX, menuY, btnW, btnH, { 0.7f, 0.7f, 0.7f, 0.9f });
 
     // タイトルへボタン
     if (g_GOSelect == 1)
-        Sprite_Draw(g_BtnTitleTex, menuX, menuY + lineH, btnW, btnH, { 1.0f, 1.0f, 0.2f, 1.0f });
+        Sprite_Draw(g_BtnTitleTex, menuX, menuY + lineH, btnW, btnH, { 1.0f, 1.0f, 1.0f, 1.0f });
     else
-        Sprite_Draw(g_BtnTitleTex, menuX, menuY + lineH, btnW, btnH, { 0.7f, 0.7f, 0.7f, 0.8f });
+        Sprite_Draw(g_BtnTitleTex, menuX, menuY + lineH, btnW, btnH, { 0.7f, 0.7f, 0.7f, 0.9f });
 
     Direct3D_SetDepthEnable(true);
 }

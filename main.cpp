@@ -29,6 +29,7 @@
 #include "light.h"
 
 #include "scene.h"
+#include "text_texture.h"
 #include "cube.h"
 #include "grid.h"
 #include "meshfield.h"
@@ -59,6 +60,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ LPSTR, _
     ShaderDepth_Initialize();
     Sampler_Initialize(Direct3D_GetDevice(), Direct3D_GetContext());
     Texture_Initialize(Direct3D_GetDevice(), Direct3D_GetContext());
+    TextTexture_Initialize();
     Sprite_Initialize(Direct3D_GetDevice(), Direct3D_GetContext());
     SpriteAnim_Initialize();
     Fade_Initialize();
@@ -172,6 +174,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ LPSTR, _
     Fade_Finalize();
     SpriteAnim_Finalize();
     Sprite_Finalize();
+    TextTexture_Finalize();
     Texture_Finalize();
     Sampler_Finalize();
     ShaderDepth_Finalize();

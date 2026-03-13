@@ -58,15 +58,21 @@ void GameClear_Draw()
     float btnX = sw * 0.5f - btnW * 0.5f;
     float btnY = sh * 0.68f;
 
+    // ボタン背景の暗いパネル
+    Sprite_Draw(g_WhiteTex,
+        btnX - 20.0f, btnY - 15.0f,
+        btnW + 40.0f, btnH + 30.0f,
+        { 0.0f, 0.0f, 0.0f, 0.6f });
+
     // ボタン背景ハイライト
     Sprite_Draw(g_WhiteTex,
         btnX - 10.0f, btnY - 5.0f,
         btnW + 20.0f, btnH + 10.0f,
-        { 1.0f, 1.0f, 0.0f, 0.25f });
+        { 0.3f, 0.5f, 1.0f, 0.4f });
 
     // タイトルへボタン
     Sprite_Draw(g_BtnTitleTex, btnX, btnY,
-        btnW, btnH, { 1.0f, 1.0f, 0.2f, 1.0f });
+        btnW, btnH, { 1.0f, 1.0f, 1.0f, 1.0f });
 
     Direct3D_SetDepthEnable(true);
 }

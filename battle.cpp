@@ -28,6 +28,7 @@
 #include "model.h"
 #include "party.h"
 #include "pad_logger.h"
+#include "text_texture.h"
 #include <cstdio>
 #include <cstdlib>
 using namespace DirectX;
@@ -89,11 +90,13 @@ static double g_EnemyBurstDelay = 0.3;
 static double g_EnemyBurstTimer = 0.0;
 
 static double g_ShootCooldown = 0.0;
-static constexpr double SHOOT_INTERVAL = 0.5;
+static constexpr double SHOOT_INTERVAL = 0.0;  // クールタイムなし（連打で連射）
+static bool g_PrevRT = false;  // RTの前フレーム状態（連打検出用）
 
 static NormalEmitter* g_HitEffect = nullptr;
 
 static int g_WhiteTexture = -1;
+static int g_BattleBgTex = -1;
 
 XMFLOAT3 g_PlayerSavePosition;
 
@@ -115,10 +118,8 @@ static constexpr float DRAGON_MODEL_SCALE  = 0.1f;
 static constexpr float ROBOT_MODEL_SCALE   = 0.3f;
 static constexpr float EYEBALL_MODEL_SCALE = 0.3f;
 
-// テキスト描画オブジェクト（HPバー上下表示用）
-static hal::DebugText* g_pPlayerHeaderText = nullptr;  // Lv + 名前
+// テキスト描画オブジェクト（HP数値のみ DebugText を維持）
 static hal::DebugText* g_pPlayerHpNumText  = nullptr;  // HP数値
-static hal::DebugText* g_pEnemyHeaderText  = nullptr;  // 敵Lv + 名前
 
 // バトルフェーズ管理
 enum BattlePhase { PHASE_BATTLE = 0, PHASE_WIN, PHASE_LOSE, PHASE_SWAP };
@@ -126,30 +127,29 @@ static BattlePhase     g_BattlePhase   = PHASE_BATTLE;
 static double          g_ResultTimer   = 0.0;
 static int             g_LastExpReward = 0;
 static bool            g_CapturedThisBattle = false;  // 仲間になったか
-static hal::DebugText* g_pResultText   = nullptr;  // 勝敗リザルト表示用
 
-// 仲間確率（%）※デバッグ用: 全て100%
+// 仲間確率（%）
 static int GetCaptureRate(MonsterKind kind)
 {
 	switch (kind) {
-	case MONSTER_KIND_SPIDER:  return 100;  // 本来30
-	case MONSTER_KIND_WOLF:   return 100;  // 本来20
-	case MONSTER_KIND_DRAGON: return 100;  // 本来0（ラスボス）
-	case MONSTER_KIND_ROBOT:  return 100;  // 本来15
-	case MONSTER_KIND_EYEBALL: return 100;  // 本来25
+	case MONSTER_KIND_SPIDER:  return 30;
+	case MONSTER_KIND_WOLF:   return 20;
+	case MONSTER_KIND_DRAGON: return 0;   // ラスボスは捕獲不可
+	case MONSTER_KIND_ROBOT:  return 15;
+	case MONSTER_KIND_EYEBALL: return 25;
 	default:                  return 0;
 	}
 }
 
-// モンスター名 -> バトル表示用 ASCII 名
+// モンスター名 -> バトル表示用日本語名
 static const char* GetEnemyDisplayName(MonsterKind kind)
 {
 	switch (kind) {
-	case MONSTER_KIND_SPIDER:  return "Spider";
-	case MONSTER_KIND_WOLF:   return "Wolf";
-	case MONSTER_KIND_DRAGON: return "Dragon";
-	case MONSTER_KIND_ROBOT:  return "Robot";
-	case MONSTER_KIND_EYEBALL: return "Eyeball";
+	case MONSTER_KIND_SPIDER:  return "スパイダー";
+	case MONSTER_KIND_WOLF:   return "オオカミ";
+	case MONSTER_KIND_DRAGON: return "ドラゴン";
+	case MONSTER_KIND_ROBOT:  return "ロボット";
+	case MONSTER_KIND_EYEBALL: return "目玉";
 	default:                  return "???";
 	}
 }
@@ -172,10 +172,10 @@ void Battle_SetEnemy(Monster* enemy)
 	g_EnemyAtk   = enemy->GetAtk();
 	g_EnemyDef   = enemy->GetDef();
 
-	// 獲得EXP（base_exp x レベル係数）
+	// 獲得EXP（base_exp x レベル係数、高レベルほど多い）
 	const MonsterBaseParam* base = Monster_GetBaseParam(g_EnemyKind);
-	float growth = 1.0f + (enemy->GetLevel() - 1) * 0.1f;
-	g_EnemyExpReward = (int)(base->base_exp * growth);
+	float exp_growth = 1.0f + (enemy->GetLevel() - 1) * 0.2f;
+	g_EnemyExpReward = (int)(base->base_exp * exp_growth);
 
 	// 敵攻撃パターン設定
 	switch (g_EnemyKind) {
@@ -241,6 +241,9 @@ void Battle_Initialize()
 	if (g_WhiteTexture < 0) {
 		g_WhiteTexture = Texture_Load(L"resource/texture/white.png");
 	}
+	if (g_BattleBgTex < 0) {
+		g_BattleBgTex = Texture_Load(L"resource/texture/battlehaikei.png");
+	}
 
 	// 3Dモデルのロード（スケール変更時は再ロードのため解放→再読込）
 	if (g_pBattleSpiderModel) { ModelRelease(g_pBattleSpiderModel); g_pBattleSpiderModel = nullptr; }
@@ -259,6 +262,7 @@ void Battle_Initialize()
 	for (int i = 0; i < 10; i++) g_BattleBullets[i].active = false;
 	for (int i = 0; i < 5;  i++) g_EnemyBullets[i].active = false;
 	g_ShootCooldown = 0.0;
+	g_PrevRT = false;
 	g_EnemyAttackTimer = g_EnemyAttackInterval;
 	g_EnemyBurstRemaining = 0;
 	g_EnemyBurstTimer = 0.0;
@@ -278,11 +282,9 @@ void Battle_Initialize()
 	g_EnemyBarX  = screenW * 0.75f - BATTLE_BAR_WIDTH / 2;
 	g_EnemyBarY  = screenH * 0.75f;
 
-	// DebugText 設定（フォントサイズ: lineSpacing=20, charSpacing=12）
-	// テキスト2行分 + マージンでバーの上下に配置確保
+	// DebugText 設定（HP数値のみ）
 	const float TEXT_LINE_H  = 20.0f;
 	const float TEXT_CHAR_W  = 12.0f;
-	const float HEADER_ABOVE = TEXT_LINE_H * 2 + 6.0f;  // バー上端からの距離
 
 	auto* dev = Direct3D_GetDevice();
 	auto* ctx = Direct3D_GetContext();
@@ -290,39 +292,12 @@ void Battle_Initialize()
 	UINT sw = (UINT)screenW;
 	UINT sh = (UINT)screenH;
 
-	// プレイヤーヘッダ（Lv + 名前：バー上 2 行）
-	delete g_pPlayerHeaderText;
-	g_pPlayerHeaderText = new hal::DebugText(
-		dev, ctx, fontTex, sw, sh,
-		g_PlayerBarX, g_PlayerBarY - HEADER_ABOVE,
-		2, 0, TEXT_LINE_H, TEXT_CHAR_W
-	);
-
 	// プレイヤー HP 数値（バー下 1 行）
 	delete g_pPlayerHpNumText;
 	g_pPlayerHpNumText = new hal::DebugText(
 		dev, ctx, fontTex, sw, sh,
 		g_PlayerBarX, g_PlayerBarY + BATTLE_BAR_HEIGHT + 4.0f,
 		1, 0, TEXT_LINE_H, TEXT_CHAR_W
-	);
-
-	// 敵ヘッダ（Lv + 名前：バー上 2 行）
-	delete g_pEnemyHeaderText;
-	g_pEnemyHeaderText = new hal::DebugText(
-		dev, ctx, fontTex, sw, sh,
-		g_EnemyBarX, g_EnemyBarY - HEADER_ABOVE,
-		2, 0, TEXT_LINE_H, TEXT_CHAR_W
-	);
-
-	// リザルトテキスト（画面中央）
-	const float RES_LINE_H = 26.0f;
-	const float RES_CHAR_W = 14.0f;
-	float resX = screenW * 0.5f - 110.0f;
-	float resY = screenH * 0.5f - 52.0f;
-	delete g_pResultText;
-	g_pResultText = new hal::DebugText(
-		dev, ctx, fontTex, sw, sh,
-		resX, resY, 4, 0, RES_LINE_H, RES_CHAR_W
 	);
 }
 
@@ -332,10 +307,10 @@ void Battle_Finalize()
 	g_HitEffect = nullptr;
 
 	// DebugText オブジェクト解放
-	delete g_pPlayerHeaderText; g_pPlayerHeaderText = nullptr;
 	delete g_pPlayerHpNumText;  g_pPlayerHpNumText  = nullptr;
-	delete g_pEnemyHeaderText;  g_pEnemyHeaderText  = nullptr;
-	delete g_pResultText;       g_pResultText       = nullptr;
+
+	// テキストテクスチャキャッシュクリア
+	TextTexture_ClearCache();
 
 	Player_SetPosition(g_PlayerSavePosition);
 
@@ -384,7 +359,12 @@ void Battle_Update(double elapsed_time)
 	g_ShootCooldown -= elapsed_time;
 	if (g_ShootCooldown < 0.0) g_ShootCooldown = 0.0;
 
-	if ((KeyLogger_IsTrigger(KK_SPACE) || PadLogger_GetRightTrigger(0) > 0.8f) && g_ShootCooldown <= 0.0) {
+	// RT連打検出（アナログなので前フレームと比較）
+	bool curRT = PadLogger_GetRightTrigger(0) > 0.5f;
+	bool rtTrigger = curRT && !g_PrevRT;
+	g_PrevRT = curRT;
+
+	if ((KeyLogger_IsTrigger(KK_SPACE) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_A) || rtTrigger) && g_ShootCooldown <= 0.0) {
 		// 空きスロットを探す
 		int slot = -1;
 		for (int i = 0; i < 10; i++) {
@@ -414,7 +394,7 @@ void Battle_Update(double elapsed_time)
 
 			// 当たり判定
 			if (g_EnemyHp > 0 && g_BattleBullets[i].x >= 1.5f && g_BattleBullets[i].x <= 2.5f) {
-				int dmg = 9999;  // デバッグ: 一撃で倒す（本来: Party_GetFighterAtk() - g_EnemyDef / 2）
+				int dmg = Party_GetFighterAtk() - g_EnemyDef / 2;
 				if (dmg < 1) dmg = 1;
 				g_EnemyHp -= dmg;
 				if (g_EnemyHp < 0) g_EnemyHp = 0;
@@ -543,6 +523,15 @@ void Battle_Draw()
 	Direct3D_SetBackBuffer();
 	Direct3D_ClearBackBuffer();
 
+	// バトル背景画像を描画
+	{
+		Direct3D_SetDepthEnable(false);
+		Sprite_Begin();
+		float sw = (float)Direct3D_GetBackBufferWidth();
+		float sh = (float)Direct3D_GetBackBufferHeight();
+		Sprite_Draw(g_BattleBgTex, 0.0f, 0.0f, sw, sh);
+	}
+
 	Direct3D_SetDepthEnable(true);
 
 	// カメラ設定（PlayerCamera を使用）
@@ -596,7 +585,7 @@ void Battle_Draw()
 			}
 			case MONSTER_KIND_ROBOT:
 			{
-				XMMATRIX trans = XMMatrixTranslation(-2.5f, -0.5f, 5.0f);
+				XMMATRIX trans = XMMatrixTranslation(-2.5f, 0.0f, 5.0f);
 				if (g_pBattleRobotModel) ModelDraw(g_pBattleRobotModel, trans, { 0.4f, 0.4f, 0.5f, 1.0f });
 				break;
 			}
@@ -625,7 +614,7 @@ void Battle_Draw()
 	switch (g_EnemyKind) {
 	case MONSTER_KIND_WOLF:
 	{
-		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.6f, 0.5f, 0.3f, 1.0f });
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 0.5f, { 0.3f, 0.25f, 0.15f, 1.0f });
 		// オオカミ
 		XMMATRIX rotWolf = XMMatrixRotationY(XM_PIDIV2);
 		XMMATRIX transWolf = XMMatrixTranslation(2.0f, -1.0f, 5.0f);
@@ -639,7 +628,7 @@ void Battle_Draw()
 	}
 	case MONSTER_KIND_DRAGON:
 	{
-		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 0.5f, { 0.1f, 0.1f, 0.2f, 1.0f });
 		// ドラゴン（ボスは常に大きいのでさらに拡大）
 		XMMATRIX rotDragon = XMMatrixRotationY(XM_PIDIV2);
 		XMMATRIX transDragon = XMMatrixTranslation(5.0f, -4.5f, 5.0f);
@@ -653,7 +642,7 @@ void Battle_Draw()
 	}
 	case MONSTER_KIND_SPIDER:
 	{
-		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.2f, 0.2f, 0.2f, 1.0f });
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 0.5f, { 0.1f, 0.1f, 0.1f, 1.0f });
 		// クモ
 		XMMATRIX rotSpider = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(-XM_PIDIV2);
 		XMMATRIX transSpider = XMMatrixTranslation(2.0f, -0.5f, 5.0f);
@@ -667,10 +656,10 @@ void Battle_Draw()
 	}
 	case MONSTER_KIND_ROBOT:
 	{
-		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.3f, 0.3f, 0.4f, 1.0f });
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 0.5f, { 0.15f, 0.15f, 0.2f, 1.0f });
 		// ロボット（プレイヤー方向 = -X を向く）
 		XMMATRIX rotRobot = XMMatrixRotationY(XM_PI);
-		XMMATRIX transRobot = XMMatrixTranslation(2.0f, -0.5f, 5.0f);
+		XMMATRIX transRobot = XMMatrixTranslation(2.0f, 0.0f, 5.0f);
 		XMMATRIX worldRobot = bossScaleMtx * rotRobot * transRobot;
 		if (g_pBattleRobotModel) {
 			ModelDraw(g_pBattleRobotModel, worldRobot, { 0.4f, 0.4f, 0.5f, 1.0f });
@@ -682,7 +671,7 @@ void Battle_Draw()
 	}
 	case MONSTER_KIND_EYEBALL:
 	{
-		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 2.0f, { 0.5f, 0.1f, 0.1f, 1.0f });
+		Light_SetSpecularWorld({ 0.0f, 2.0f, -10.0f }, 0.5f, { 0.25f, 0.05f, 0.05f, 1.0f });
 		// 目玉
 		XMMATRIX rotEye = XMMatrixRotationZ(XM_PIDIV2);
 		XMMATRIX transEye = XMMatrixTranslation(2.0f, 0.5f, 5.0f);
@@ -758,18 +747,25 @@ void Battle_Draw()
 	}
 
 	// ==== HPバー テキスト表示 ==================================================
-	// DebugText は毎フレーム位置・ブレンドステートをリセットしてから描画
 	char buf[64];
+	int texId;
+	const int HEADER_FONT = 20;
+	const int RESULT_FONT = 28;
 
-	// 戦闘キャラ：Lv + 名前（バー上）
-	if (g_pPlayerHeaderText) {
-		g_pPlayerHeaderText->Clear();
-		snprintf(buf, sizeof(buf), "Lv.%d\n%s", Party_GetFighterLevel(), Party_GetFighterName());
-		g_pPlayerHeaderText->SetText(buf, { 1.0f, 1.0f, 1.0f, 1.0f });
-		g_pPlayerHeaderText->Draw();
+	// 戦闘キャラ：Lv + 名前（バー上）TextTexture で描画
+	{
+		snprintf(buf, sizeof(buf), "Lv.%d", Party_GetFighterLevel());
+		texId = TextTexture_Create(buf, HEADER_FONT);
+		if (texId >= 0) {
+			Sprite_Draw(texId, g_PlayerBarX, g_PlayerBarY - 46.0f);
+		}
+		texId = TextTexture_Create(Party_GetFighterName(), HEADER_FONT);
+		if (texId >= 0) {
+			Sprite_Draw(texId, g_PlayerBarX, g_PlayerBarY - 24.0f);
+		}
 	}
 
-	// 戦闘キャラ：現在HP / 最大HP（バー下）
+	// 戦闘キャラ：現在HP / 最大HP（バー下）DebugText で描画
 	if (g_pPlayerHpNumText) {
 		g_pPlayerHpNumText->Clear();
 		snprintf(buf, sizeof(buf), "%d/%d", Party_GetFighterHp(), Party_GetFighterHpMax());
@@ -777,12 +773,17 @@ void Battle_Draw()
 		g_pPlayerHpNumText->Draw();
 	}
 
-	// 敵：Lv + 名前（バー上）
-	if (g_pEnemyHeaderText) {
-		g_pEnemyHeaderText->Clear();
-		snprintf(buf, sizeof(buf), "Lv.%d\n%s", g_EnemyLevel, GetEnemyDisplayName(g_EnemyKind));
-		g_pEnemyHeaderText->SetText(buf, { 1.0f, 1.0f, 1.0f, 1.0f });
-		g_pEnemyHeaderText->Draw();
+	// 敵：Lv + 名前（バー上）TextTexture で描画
+	{
+		snprintf(buf, sizeof(buf), "Lv.%d", g_EnemyLevel);
+		texId = TextTexture_Create(buf, HEADER_FONT);
+		if (texId >= 0) {
+			Sprite_Draw(texId, g_EnemyBarX, g_EnemyBarY - 46.0f);
+		}
+		texId = TextTexture_Create(GetEnemyDisplayName(g_EnemyKind), HEADER_FONT);
+		if (texId >= 0) {
+			Sprite_Draw(texId, g_EnemyBarX, g_EnemyBarY - 24.0f);
+		}
 	}
 
 	// ==== 交代フェーズオーバーレイ ============================================
@@ -793,14 +794,21 @@ void Battle_Draw()
 			ow * 0.25f, oh * 0.35f,
 			ow * 0.5f, oh * 0.3f,
 			{ 0.0f, 0.0f, 0.0f, 0.75f });
-		if (g_pResultText) {
-			g_pResultText->Clear();
-			char rbuf[128];
-			snprintf(rbuf, sizeof(rbuf), "Fighter Down!\nNext: %s Lv.%d\n[Tab]Switch [Space]Go",
-				Party_GetFighterName(), Party_GetFighterLevel());
-			g_pResultText->SetText(rbuf, { 1.0f, 0.8f, 0.0f, 1.0f });
-			g_pResultText->Draw();
-		}
+
+		char rbuf[128];
+		float cx = ow * 0.5f - 120.0f;
+		float cy = oh * 0.5f - 50.0f;
+
+		snprintf(rbuf, sizeof(rbuf), "せんとうふのう！");
+		texId = TextTexture_Create(rbuf, RESULT_FONT);
+		if (texId >= 0) Sprite_Draw(texId, cx, cy, { 1.0f, 0.8f, 0.0f, 1.0f });
+
+		snprintf(rbuf, sizeof(rbuf), "つぎ: %s Lv.%d", Party_GetFighterName(), Party_GetFighterLevel());
+		texId = TextTexture_Create(rbuf, RESULT_FONT);
+		if (texId >= 0) Sprite_Draw(texId, cx, cy + 34.0f, { 1.0f, 0.8f, 0.0f, 1.0f });
+
+		texId = TextTexture_Create("[Tab]こうたい [Space]すすむ", RESULT_FONT);
+		if (texId >= 0) Sprite_Draw(texId, cx, cy + 68.0f, { 1.0f, 0.8f, 0.0f, 1.0f });
 	}
 
 	// ==== 勝敗リザルトオーバーレイ ============================================
@@ -812,25 +820,32 @@ void Battle_Draw()
 			ow * 0.25f, oh * 0.35f,
 			ow * 0.5f, oh * 0.3f,
 			{ 0.0f, 0.0f, 0.0f, 0.75f });
-		// リザルトテキスト
-		if (g_pResultText) {
-			g_pResultText->Clear();
-			char rbuf[128];
-			XMFLOAT4 rcolor;
-			if (g_BattlePhase == PHASE_WIN) {
-				if (g_CapturedThisBattle) {
-					snprintf(rbuf, sizeof(rbuf), "Victory!\nExp +%d\n%s joined!",
-						g_LastExpReward, Party_GetKindName(g_EnemyKind));
-				} else {
-					snprintf(rbuf, sizeof(rbuf), "Victory!\nExp +%d", g_LastExpReward);
-				}
-				rcolor = { 1.0f, 1.0f, 0.0f, 1.0f };  // 黄色
-			} else {
-				snprintf(rbuf, sizeof(rbuf), "Defeat...");
-				rcolor = { 1.0f, 0.3f, 0.3f, 1.0f };  // 赤
+
+		char rbuf[128];
+		XMFLOAT4 rcolor;
+		float cx = ow * 0.5f - 120.0f;
+		float cy = oh * 0.5f - 50.0f;
+
+		if (g_BattlePhase == PHASE_WIN) {
+			rcolor = { 1.0f, 1.0f, 0.0f, 1.0f };  // 黄色
+
+			snprintf(rbuf, sizeof(rbuf), "%s をたおした！", GetEnemyDisplayName(g_EnemyKind));
+			texId = TextTexture_Create(rbuf, RESULT_FONT);
+			if (texId >= 0) Sprite_Draw(texId, cx, cy, rcolor);
+
+			snprintf(rbuf, sizeof(rbuf), "けいけんち +%d", g_LastExpReward);
+			texId = TextTexture_Create(rbuf, RESULT_FONT);
+			if (texId >= 0) Sprite_Draw(texId, cx, cy + 34.0f, rcolor);
+
+			if (g_CapturedThisBattle) {
+				snprintf(rbuf, sizeof(rbuf), "%s がなかまになった！", GetEnemyDisplayName(g_EnemyKind));
+				texId = TextTexture_Create(rbuf, RESULT_FONT);
+				if (texId >= 0) Sprite_Draw(texId, cx, cy + 68.0f, rcolor);
 			}
-			g_pResultText->SetText(rbuf, rcolor);
-			g_pResultText->Draw();
+		} else {
+			rcolor = { 1.0f, 0.3f, 0.3f, 1.0f };  // 赤
+			texId = TextTexture_Create("まけてしまった...", RESULT_FONT);
+			if (texId >= 0) Sprite_Draw(texId, cx, cy, rcolor);
 		}
 	}
 

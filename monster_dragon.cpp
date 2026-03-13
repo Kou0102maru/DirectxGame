@@ -44,7 +44,7 @@ MonsterDragon::MonsterDragon(const XMFLOAT3& position, int level)
     if (!g_pDragonFieldModel) {
         g_pDragonFieldModel = ModelLoad("resource/model/Dragon.fbx", DRAGON_FIELD_SCALE, true);
     }
-    m_position.y = FLY_HEIGHT;  // 空中に配置
+    // ボス部屋で待機（どっしり構える）
     ChangeState(new StateCircle(this));
 }
 
@@ -59,36 +59,30 @@ MonsterDragon::StateCircle::StateCircle(MonsterDragon* pOwner)
 
 void MonsterDragon::StateCircle::Update(double elapsed_time)
 {
-    m_accumulated_time += elapsed_time;
-
-    // 円を描いて移動
-    float angle = (float)m_accumulated_time * CIRCLE_SPEED;
-    m_pOwner->m_position.x = m_center_position.x + cosf(angle) * m_radius;
-    m_pOwner->m_position.z = m_center_position.z + sinf(angle) * m_radius;
-    m_pOwner->m_position.y = FLY_HEIGHT;
-
-    // 進行方向を計算
-    XMFLOAT3 prev_pos = {
-        m_center_position.x + cosf(angle - 0.1f) * m_radius,
-        FLY_HEIGHT,
-        m_center_position.z + sinf(angle - 0.1f) * m_radius
-    };
-    XMVECTOR direction = XMLoadFloat3(&m_pOwner->m_position) - XMLoadFloat3(&prev_pos);
-    XMStoreFloat3(&m_pOwner->m_front, XMVector3Normalize(direction));
-
-    // プレイヤーが近づいたら急降下
+    // どっしり構えて待機（移動しない）
+    // プレイヤーの方向をゆっくり向く
     XMFLOAT3 player_pos = Player_GetPosition();
     XMVECTOR to_player = XMLoadFloat3(&player_pos) - XMLoadFloat3(&m_pOwner->m_position);
     float distance = XMVectorGetX(XMVector3Length(to_player));
 
-    if (distance <= DETECTION_RADIUS) {
-        m_pOwner->ChangeState(new StateDive(m_pOwner));
+    if (distance < 50.0f) {
+        // プレイヤーが見える範囲ならそちらを向く
+        XMVECTOR dir = XMVector3Normalize(to_player);
+        XMFLOAT3 target_front;
+        XMStoreFloat3(&target_front, dir);
+        // ゆっくり向きを補間
+        float t = 2.0f * (float)elapsed_time;
+        if (t > 1.0f) t = 1.0f;
+        m_pOwner->m_front.x += (target_front.x - m_pOwner->m_front.x) * t;
+        m_pOwner->m_front.z += (target_front.z - m_pOwner->m_front.z) * t;
     }
+
+    // 動かず構えるだけ（攻撃遷移なし）
 }
 
 void MonsterDragon::StateCircle::Draw() const
 {
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.1f, 0.1f, 0.2f, 1.0f });
 
     // 進行方向を向くよう Y 軸回転を計算（bBlenderで座標系変換済み）
     float s = m_pOwner->GetFieldScale();
@@ -135,8 +129,7 @@ void MonsterDragon::StateDive::Update(double elapsed_time)
     else {
         m_give_up_time += elapsed_time;
         if (m_give_up_time >= GIVE_UP_TIME) {
-            // 空中に戻る
-            m_pOwner->m_position.y = FLY_HEIGHT;
+            // 元の位置に戻って構える
             m_pOwner->ChangeState(new StateCircle(m_pOwner));
         }
     }
@@ -145,7 +138,7 @@ void MonsterDragon::StateDive::Update(double elapsed_time)
 void MonsterDragon::StateDive::Draw() const
 {
     // 急降下中は明るく
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 4.0f, { 0.8f, 0.2f, 0.2f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.1f, 0.1f, 0.2f, 1.0f });
 
     // 進行方向を向くよう Y 軸回転を計算（bBlenderで座標系変換済み）
     float s = m_pOwner->GetFieldScale();

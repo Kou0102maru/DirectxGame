@@ -16,8 +16,8 @@ using namespace DirectX;
 
 // メッシュフィールドデータ
 static constexpr float FIELD_MESH_SIZE = 2.0f; // メッシュ１枚分のサイズ（正方形)
-static constexpr int FIELD_MESH_H_COUNT = 100; // 横のメッシュ数
-static constexpr int FIELD_MESH_V_COUNT = 100; // 縦のメッシュ数
+static constexpr int FIELD_MESH_H_COUNT = 32; // 横のメッシュ数（外壁幅64 / 2.0）
+static constexpr int FIELD_MESH_V_COUNT = 51; // 縦のメッシュ数（外壁奥行102 / 2.0）
 static constexpr int FIELD_MESH_H_VERTEX_COUNT = FIELD_MESH_H_COUNT + 1; // 横の頂点数
 static constexpr int FIELD_MESH_V_VERTEX_COUNT = FIELD_MESH_V_COUNT + 1; // 縦の頂点数
 static constexpr int NUM_VERTEX = FIELD_MESH_H_VERTEX_COUNT * FIELD_MESH_V_VERTEX_COUNT; // 頂点数
@@ -111,8 +111,8 @@ void MeshField_Initialize(ID3D11Device* pDevice, ID3D11DeviceContext* pContext)
 
 	g_pDevice->CreateBuffer(&bd, &sd, &g_pIndexBuffer);
 
-	g_Tex0Id = Texture_Load(L"resource/Texture/Bark_Soil_Mix_sesjcefb_1K_BaseColor.jpg");
-	g_Tex1Id = Texture_Load(L"resource/Texture/Ground_Gravel_ukxmacclw_1K_BaseColor.jpg");
+	g_Tex0Id = Texture_Load(L"resource/texture/yuka.png");
+	g_Tex1Id = Texture_Load(L"resource/texture/yuka.png");
 	// g_Tex1Id = Texture_Load(L"resource/Texture/knight.png");
 
 	ShaderField_Initialize(pDevice, pContext);
@@ -148,8 +148,7 @@ void MeshField_Draw()
 
 	// 頂点シェーダーにワールド座標変換行列を設定
 	float offset_x = FIELD_MESH_H_COUNT * FIELD_MESH_SIZE * 0.5f;
-	float offset_z = FIELD_MESH_V_COUNT * FIELD_MESH_SIZE * 0.5f;
-	ShaderField_SetWorldMatrix(XMMatrixTranslation(-offset_x, 0.0f, -offset_z));
+	ShaderField_SetWorldMatrix(XMMatrixTranslation(-offset_x, 0.0f, -42.0f));
 
 	ShaderField_SetColor({ 2.0f, 2.0f, 2.0f, 1.0f });
 

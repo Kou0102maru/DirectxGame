@@ -30,6 +30,7 @@ void Party_Finalize();
 int  Party_GetCount();
 int  Party_GetMax();
 bool Party_Add(MonsterKind kind, int level);
+bool Party_Remove(int index);  // パーティからモンスターを外す
 const PartyMonster* Party_Get(int index);
 
 const char* Party_GetKindName(MonsterKind kind);

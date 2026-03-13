@@ -21,7 +21,7 @@ void EnemyNormal::EnemyNormalStatePatrol::Update(double elapsed_time)
 
 void EnemyNormal::EnemyNormalStatePatrol::Draw() const
 {
-	Light_SetSpecularWorld(Player_GetPosition(), 4.0f, { 0.3f,0.25f,0.2f,1.0f });
+	Light_SetSpecularWorld(Player_GetPosition(), 1.0f, { 0.15f, 0.12f, 0.1f, 1.0f });
 
 	Cube_Draw(m_pOwner->m_TexWhiteId,
 		XMMatrixTranslation(m_pOwner->m_Position.x, m_pOwner->m_Position.y, m_pOwner->m_Position.z));

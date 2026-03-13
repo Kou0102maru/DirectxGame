@@ -13,6 +13,7 @@
 #include "light.h"
 #include "player_camera.h"
 #include "texture.h"
+#include "map.h"
 #include <DirectXMath.h>
 using namespace DirectX;
 
@@ -76,7 +77,7 @@ void MonsterSpider::StatePatrol::Update(double elapsed_time)
 
 void MonsterSpider::StatePatrol::Draw() const
 {
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.2f, 0.2f, 0.2f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.1f, 0.1f, 0.1f, 1.0f });
 
     if (s_pModel) {
         float s = m_pOwner->GetFieldScale();
@@ -84,7 +85,7 @@ void MonsterSpider::StatePatrol::Draw() const
         XMMATRIX rot = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(-XM_PIDIV2);
         XMMATRIX trans = XMMatrixTranslation(
             m_pOwner->m_position.x,
-            m_pOwner->m_position.y - 0.5f,
+            m_pOwner->m_position.y,
             m_pOwner->m_position.z);
         XMMATRIX world = scale * rot * trans;
         ModelDraw(s_pModel, world, { 0.1f, 0.1f, 0.1f, 1.0f });
@@ -121,7 +122,10 @@ void MonsterSpider::StateChase::Update(double elapsed_time)
         XMStoreFloat3(&m_pOwner->m_position, position);
 
         // y座標を固定
-        m_pOwner->m_position.y = 0.5f;
+        m_pOwner->m_position.y = 0.0f;
+
+        // 壁との衝突判定
+        Map_CollideWithWalls(m_pOwner->m_position, 0.5f);
 
         // 向きを更新
         XMStoreFloat3(&m_pOwner->m_front, direction);
@@ -143,7 +147,7 @@ void MonsterSpider::StateChase::Update(double elapsed_time)
 void MonsterSpider::StateChase::Draw() const
 {
     // 追跡中は少し明るく
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.2f, 0.2f, 0.2f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.1f, 0.1f, 0.1f, 1.0f });
 
     if (s_pModel) {
         // プレイヤー方向を向く（m_frontからY回転角を計算）
@@ -153,7 +157,7 @@ void MonsterSpider::StateChase::Draw() const
         XMMATRIX rot = XMMatrixRotationX(XM_PIDIV2) * XMMatrixRotationY(yAngle);
         XMMATRIX trans = XMMatrixTranslation(
             m_pOwner->m_position.x,
-            m_pOwner->m_position.y - 0.5f,
+            m_pOwner->m_position.y,
             m_pOwner->m_position.z);
         XMMATRIX world = scale * rot * trans;
         ModelDraw(s_pModel, world, { 0.1f, 0.1f, 0.1f, 1.0f });

@@ -175,6 +175,7 @@
     <ClCompile Include="mouse.cpp" />
     <ClCompile Include="pad_logger.cpp" />
     <ClCompile Include="party.cpp" />
+    <ClCompile Include="text_texture.cpp" />
     <ClCompile Include="particle.cpp" />
     <ClCompile Include="particle_test.cpp" />
     <ClCompile Include="player.cpp" />
@@ -238,6 +239,7 @@
     <ClInclude Include="mouse.h" />
     <ClInclude Include="pad_logger.h" />
     <ClInclude Include="party.h" />
+    <ClInclude Include="text_texture.h" />
     <ClInclude Include="particle.h" />
     <ClInclude Include="particle_test.h" />
     <ClInclude Include="player.h" />

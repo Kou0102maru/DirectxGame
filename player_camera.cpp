@@ -50,14 +50,14 @@ void PlayerCamera_Update(double elapsed_time)
 	float pitchInput = 0.0f;
 
 	// 矢印キー
-	if (KeyLogger_IsPressed(KK_LEFT))  yawInput -= 1.0f;
-	if (KeyLogger_IsPressed(KK_RIGHT)) yawInput += 1.0f;
+	if (KeyLogger_IsPressed(KK_LEFT))  yawInput += 1.0f;
+	if (KeyLogger_IsPressed(KK_RIGHT)) yawInput -= 1.0f;
 	if (KeyLogger_IsPressed(KK_UP))    pitchInput += 1.0f;
 	if (KeyLogger_IsPressed(KK_DOWN))  pitchInput -= 1.0f;
 
 	// 右スティック
 	XMFLOAT2 rs = PadLogger_GetRightThumbStick(0);
-	yawInput += rs.x;
+	yawInput -= rs.x;
 	pitchInput -= rs.y; // スティック上でピッチ増加（見上げ）
 
 	g_CameraYaw += yawInput * CAMERA_ROT_SPEED * dt;

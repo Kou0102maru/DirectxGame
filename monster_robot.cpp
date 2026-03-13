@@ -13,6 +13,7 @@
 #include "light.h"
 #include "player_camera.h"
 #include "texture.h"
+#include "map.h"
 #include <DirectXMath.h>
 using namespace DirectX;
 
@@ -62,6 +63,9 @@ void MonsterRobot::StateMarch::Update(double elapsed_time)
     // Z•ûŒü‚É’¼i
     m_pOwner->m_position.z += m_direction * MARCH_SPEED * (float)elapsed_time;
 
+    // •Ç‚Æ‚ÌÕ“Ë”»’è
+    Map_CollideWithWalls(m_pOwner->m_position, 0.5f);
+
     // ”ÍˆÍ‚ð’´‚¦‚½‚çÜ‚è•Ô‚µ
     if (m_pOwner->m_position.z > m_start_z + MARCH_RANGE) {
         m_direction = -1.0f;
@@ -85,7 +89,7 @@ void MonsterRobot::StateMarch::Update(double elapsed_time)
 
 void MonsterRobot::StateMarch::Draw() const
 {
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.3f, 0.3f, 0.4f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.15f, 0.15f, 0.2f, 1.0f });
 
     if (s_pModel) {
         float s = m_pOwner->GetFieldScale();
@@ -128,7 +132,10 @@ void MonsterRobot::StateChase::Update(double elapsed_time)
         position += direction * CHASE_SPEED * (float)elapsed_time;
         XMStoreFloat3(&m_pOwner->m_position, position);
 
-        m_pOwner->m_position.y = 1.5f;
+        m_pOwner->m_position.y = 0.8f;
+
+        // •Ç‚Æ‚ÌÕ“Ë”»’è
+        Map_CollideWithWalls(m_pOwner->m_position, 0.5f);
 
         XMStoreFloat3(&m_pOwner->m_front, direction);
 
@@ -144,7 +151,7 @@ void MonsterRobot::StateChase::Update(double elapsed_time)
 
 void MonsterRobot::StateChase::Draw() const
 {
-    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 2.0f, { 0.3f, 0.3f, 0.4f, 1.0f });
+    Light_SetSpecularWorld(PlayerCamera_GetPosition(), 0.5f, { 0.15f, 0.15f, 0.2f, 1.0f });
 
     if (s_pModel) {
         float s = m_pOwner->GetFieldScale();

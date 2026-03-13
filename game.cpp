@@ -40,6 +40,7 @@ using namespace DirectX;
 #include"particle_test.h"
 #include"party.h"
 #include"pad_logger.h"
+#include"text_texture.h"
 #include <cstdlib>
 
 static double g_AccumulatedTime = 0.0;
@@ -50,6 +51,8 @@ static int g_TestTex01{ -1 };
 static bool g_ShowStatus = false;
 static hal::DebugText* g_pStatusText = nullptr;
 static int g_StatusWhiteTex = -1;
+static int g_StatusCursor = -1;    // -1=カーソルなし, 0~=パーティモンスターインデックス
+static bool g_StatusConfirm = false; // 削除確認中フラグ
 
 // フィールドHUD（パーティアイコン表示）
 static int g_IconSlimeTex = -1;    // プレイヤー（スライム）
@@ -71,11 +74,33 @@ static int GetMonsterIconTex(MonsterKind kind)
 	}
 }
 
+// ステータス画面用ASCII名（DebugTextはASCIIフォントなので日本語不可）
+static const char* GetMonsterNameAscii(MonsterKind kind)
+{
+	switch (kind) {
+	case MONSTER_KIND_SPIDER:  return "Spider";
+	case MONSTER_KIND_WOLF:    return "Wolf";
+	case MONSTER_KIND_DRAGON:  return "Dragon";
+	case MONSTER_KIND_ROBOT:   return "Robot";
+	case MONSTER_KIND_EYEBALL: return "Eyeball";
+	default:                   return "???";
+	}
+}
+
+static const char* GetFighterNameAscii()
+{
+	int af = Party_GetActiveFighter();
+	if (af == -1) return "Player";
+	const PartyMonster* pm = Party_Get(af);
+	if (pm) return GetMonsterNameAscii(pm->kind);
+	return "???";
+}
+
 //=============================================================================
 // 距離ベース敵出現システム（ドラゴン除外）
 //=============================================================================
-static constexpr float SPAWN_DISTANCE = 40.0f;  // この距離以内に近づくと出現
-static constexpr float RESET_DISTANCE = 70.0f;  // この距離以上離れると再出現可能になる
+static constexpr float SPAWN_DISTANCE = 20.0f;  // この距離以内に近づくと出現
+static constexpr float RESET_DISTANCE = 35.0f;  // この距離以上離れると再出現可能になる
 
 // 出現ポイントの状態
 enum SpawnState {
@@ -106,36 +131,40 @@ static void InitSpawnPoints()
     g_SpawnPointCount = SPAWN_POINT_MAX;
 
     if (g_CurrentStage == 1) {
-        // ステージ1: クモ + オオカミ、ボス = 目玉 Lv7
-        // クモ × 4 (Lv1-3) ? 手前側に配置
-        g_SpawnPoints[0] = { MONSTER_KIND_SPIDER, 1, { 15.0f, 0.5f, -30.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[1] = { MONSTER_KIND_SPIDER, 1, {-35.0f, 0.5f,  -5.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[2] = { MONSTER_KIND_SPIDER, 2, { 45.0f, 0.5f,  20.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[3] = { MONSTER_KIND_SPIDER, 3, {-55.0f, 0.5f,  40.0f }, SPAWN_READY, nullptr, false };
-        // オオカミ × 3 (Lv2-4) ? 中盤?奥側に配置
-        g_SpawnPoints[4] = { MONSTER_KIND_WOLF,  2, {-45.0f, 0.5f, -15.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[5] = { MONSTER_KIND_WOLF,  3, { 60.0f, 0.5f,  35.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[6] = { MONSTER_KIND_WOLF,  4, {-20.0f, 0.5f,  55.0f }, SPAWN_READY, nullptr, false };
-        // オオカミ × 1 (Lv3)
-        g_SpawnPoints[7] = { MONSTER_KIND_WOLF,  3, { 30.0f, 0.5f,  50.0f }, SPAWN_READY, nullptr, false };
-        // ボス目玉 × 1 (Lv7) ? マップ奥端
-        g_SpawnPoints[8] = { MONSTER_KIND_EYEBALL, 7, {  0.0f, 2.5f, 85.0f }, SPAWN_READY, nullptr, true };
+        // ステージ1: 遺跡迷路内に配置
+        // ジグザグ通路: 入口→右→左→右→ボス部屋
+        //
+        // Room1 (Z=-40?-15): 入口エリア
+        g_SpawnPoints[0] = { MONSTER_KIND_SPIDER, 1, { 15.0f, 0.0f, -30.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[1] = { MONSTER_KIND_SPIDER, 1, {-15.0f, 0.0f, -28.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[2] = { MONSTER_KIND_SPIDER, 2, {  0.0f, 0.0f, -22.0f }, SPAWN_READY, nullptr, false };
+        // Room2 (Z=-15?+15): 中央エリア
+        g_SpawnPoints[3] = { MONSTER_KIND_SPIDER, 3, {-15.0f, 0.0f,  -5.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[4] = { MONSTER_KIND_WOLF,   2, { 15.0f, 0.0f,   5.0f }, SPAWN_READY, nullptr, false };
+        // Room3 (Z=+16?+39): 奥エリア
+        g_SpawnPoints[5] = { MONSTER_KIND_WOLF,   3, {  0.0f, 0.0f,  25.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[6] = { MONSTER_KIND_WOLF,   4, {-15.0f, 0.0f,  35.0f }, SPAWN_READY, nullptr, false };
+        // Room4 (Z=+41?+58): ボス部屋
+        g_SpawnPoints[7] = { MONSTER_KIND_WOLF,   3, { 20.0f, 0.0f,  48.0f }, SPAWN_READY, nullptr, false };
+        // ボス目玉 Lv7
+        g_SpawnPoints[8] = { MONSTER_KIND_EYEBALL, 7, {  0.0f, 2.5f,  53.0f }, SPAWN_READY, nullptr, true };
     }
     else {
-        // ステージ2: 目玉 + ロボット、ボス = ドラゴン Lv15
-        // 目玉 × 3 (Lv4-6) ? 手前側に配置
+        // ステージ2: 遺跡迷路内に配置（強敵）
+        // Room1
         g_SpawnPoints[0] = { MONSTER_KIND_EYEBALL, 4, { 15.0f, 2.5f, -30.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[1] = { MONSTER_KIND_EYEBALL, 5, {-35.0f, 2.5f,  -5.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[2] = { MONSTER_KIND_EYEBALL, 6, { 45.0f, 2.5f,  20.0f }, SPAWN_READY, nullptr, false };
-        // ロボット × 4 (Lv5-7) ? 中盤?奥側に配置
-        g_SpawnPoints[3] = { MONSTER_KIND_ROBOT,  5, {-55.0f, 1.5f, -15.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[4] = { MONSTER_KIND_ROBOT,  5, { 60.0f, 1.5f,  35.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[5] = { MONSTER_KIND_ROBOT,  6, {-20.0f, 1.5f,  55.0f }, SPAWN_READY, nullptr, false };
-        g_SpawnPoints[6] = { MONSTER_KIND_ROBOT,  7, { 30.0f, 1.5f,  15.0f }, SPAWN_READY, nullptr, false };
-        // 通常ロボット × 1 (Lv6)
-        g_SpawnPoints[7] = { MONSTER_KIND_ROBOT,  6, {-65.0f, 1.5f,  30.0f }, SPAWN_READY, nullptr, false };
-        // ボスドラゴン × 1 (Lv15) ? マップ奥端
-        g_SpawnPoints[8] = { MONSTER_KIND_DRAGON, 15, {  0.0f, 3.0f, 85.0f }, SPAWN_READY, nullptr, true };
+        g_SpawnPoints[1] = { MONSTER_KIND_EYEBALL, 5, {-15.0f, 2.5f, -28.0f }, SPAWN_READY, nullptr, false };
+        // Room2
+        g_SpawnPoints[2] = { MONSTER_KIND_EYEBALL, 6, {-10.0f, 2.5f,   0.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[3] = { MONSTER_KIND_ROBOT,   5, { 15.0f, 0.8f,   5.0f }, SPAWN_READY, nullptr, false };
+        // Room3
+        g_SpawnPoints[4] = { MONSTER_KIND_ROBOT,   5, {  0.0f, 0.8f,  25.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[5] = { MONSTER_KIND_ROBOT,   6, {-15.0f, 0.8f,  35.0f }, SPAWN_READY, nullptr, false };
+        g_SpawnPoints[6] = { MONSTER_KIND_ROBOT,   7, { 20.0f, 0.8f,  30.0f }, SPAWN_READY, nullptr, false };
+        // Room4: ボス部屋
+        g_SpawnPoints[7] = { MONSTER_KIND_ROBOT,   6, {-10.0f, 0.8f,  48.0f }, SPAWN_READY, nullptr, false };
+        // ボスドラゴン Lv15
+        g_SpawnPoints[8] = { MONSTER_KIND_DRAGON, 15, {  0.0f, 0.0f,  53.0f }, SPAWN_READY, nullptr, true };
     }
 }
 
@@ -196,7 +225,7 @@ static void UpdateSpawnSystem()
                     sp.state = SPAWN_ACTIVE;
                     // ボスは2.5倍サイズで表示
                     if (sp.is_boss) {
-                        sp.pMonster->SetFieldScale(2.5f);
+                        sp.pMonster->SetFieldScale(1.5f);
                     }
                 }
             }
@@ -240,7 +269,8 @@ void Game_Initialize()
 	}
 	else {
 		g_CurrentStage = 1;
-		Player_Initialize({ 0.0f, 0.5f, -65.0f }, { 0.0f, 0.0f, 1.0f });
+		Player_ResetStats();  // ステータスを初期値にリセット（ゲームクリア/ゲームオーバー後の再開用）
+		Player_Initialize({ 0.0f, 0.5f, -28.0f }, { 0.0f, 0.0f, 1.0f });
 		Party_Initialize();  // パーティは初回のみ初期化（戦闘復帰時は保持）
 	}
 
@@ -249,6 +279,7 @@ void Game_Initialize()
 	Camera_Initialize({ 8.2f, 8.4f, -12.7f }, { -0.5f, -0.3f, 0.7f }, { 0.8f, 0.0f, 0.5f });
 	PlayerCamera_Initialize();
 	Map_Initialize();
+	Map_SetStage(g_CurrentStage);
 	Bullet_Initialize();
 	Sky_Initialize();
 	Billboard_Initialize();
@@ -331,12 +362,13 @@ void Game_Update(double elapsed_time)
 		if (g_CurrentStage == 1) {
 			// ステージ1ボス撃破 → ステージ2へ
 			g_CurrentStage = 2;
+			Map_SetStage(2);
 			// 全モンスター削除してステージ2のスポーン再初期化
 			Monster_Finalize();
 			Monster_Initialize();
 			InitSpawnPoints();
 			// プレイヤー位置リセット・HP全回復
-			Player_SetPosition({ 0.0f, 0.5f, -65.0f });
+			Player_SetPosition({ 0.0f, 0.5f, -28.0f });
 			Player_TakeDamage(-(Player_GetHpMax() - Player_GetHp()));
 			return;
 		}
@@ -350,6 +382,8 @@ void Game_Update(double elapsed_time)
 	// Mキー / Startボタン：ステータス画面のトグル
 	if (KeyLogger_IsTrigger(KK_M) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_START)) {
 		g_ShowStatus = !g_ShowStatus;
+		g_StatusCursor = -1;       // 開閉時カーソルリセット
+		g_StatusConfirm = false;
 	}
 
 	// Tabキー / RBボタン：戦闘キャラ切替
@@ -357,8 +391,49 @@ void Game_Update(double elapsed_time)
 		Party_CycleActiveFighter();
 	}
 
-	// ステータス画面表示中はゲーム停止
-	if (g_ShowStatus) return;
+	// ステータス画面表示中の操作
+	if (g_ShowStatus) {
+		int party_count = Party_GetCount();
+
+		if (g_StatusConfirm) {
+			// 削除確認中: Yキー/Aボタンで確定、Nキー/Bボタンでキャンセル
+			if (KeyLogger_IsTrigger(KK_Y) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_A)) {
+				Party_Remove(g_StatusCursor);
+				g_StatusConfirm = false;
+				// カーソル補正
+				if (g_StatusCursor >= Party_GetCount()) {
+					g_StatusCursor = Party_GetCount() - 1;
+				}
+				if (Party_GetCount() == 0) g_StatusCursor = -1;
+			}
+			if (KeyLogger_IsTrigger(KK_N) || KeyLogger_IsTrigger(KK_ESCAPE) ||
+				PadLogger_IsTrigger(0, XINPUT_GAMEPAD_B)) {
+				g_StatusConfirm = false;
+			}
+		}
+		else {
+			// 上下キー / 十字キーでカーソル移動
+			if (party_count > 0) {
+				if (KeyLogger_IsTrigger(KK_UP) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_DPAD_UP)) {
+					if (g_StatusCursor < 0) g_StatusCursor = party_count - 1;
+					else if (g_StatusCursor > 0) g_StatusCursor--;
+					else g_StatusCursor = -1;  // 一番上からさらに上→カーソル解除
+				}
+				if (KeyLogger_IsTrigger(KK_DOWN) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_DPAD_DOWN)) {
+					if (g_StatusCursor < 0) g_StatusCursor = 0;
+					else if (g_StatusCursor < party_count - 1) g_StatusCursor++;
+					else g_StatusCursor = -1;  // 一番下からさらに下→カーソル解除
+				}
+			}
+			// Xキー / Xボタン：選択中のモンスターを外す確認
+			if (g_StatusCursor >= 0 && g_StatusCursor < party_count) {
+				if (KeyLogger_IsTrigger(KK_X) || PadLogger_IsTrigger(0, XINPUT_GAMEPAD_X)) {
+					g_StatusConfirm = true;
+				}
+			}
+		}
+		return;  // ステータス画面表示中はゲーム停止
+	}
 
 	g_AccumulatedTime += elapsed_time;
 
@@ -567,70 +642,133 @@ void Game_Draw()
 		int party_count = Party_GetCount();
 		int activeFighter = Party_GetActiveFighter();
 
-		// パネルサイズ計算（戦闘キャラ詳細 + プレイヤー簡易 + パーティ一覧）
-		float panel_h = 170.0f;  // 戦闘キャラステータス基本部分
-		if (activeFighter >= 0) panel_h += 50.0f;  // プレイヤー簡易表示分
-		if (party_count > 0) panel_h += 30.0f + party_count * 20.0f;  // パーティ一覧
+		// パネルサイズ計算（戦闘キャラ詳細 + プレイヤー簡易 + パーティ一覧 + 操作ガイド）
+		float panel_h = 200.0f;  // 戦闘キャラステータス基本部分（余裕あり）
+		if (activeFighter >= 0) panel_h += 55.0f;  // プレイヤー簡易表示分
+		if (party_count > 0) panel_h += 35.0f + party_count * 24.0f;  // パーティ一覧
+		if (g_StatusConfirm) panel_h += 60.0f;  // 確認ダイアログ分
+		else panel_h += 35.0f;  // 操作ガイド分
 
 		// 背景パネル（半透明ダークブルー）
 		Sprite_Draw(g_StatusWhiteTex,
-			sw * 0.5f - 200.0f, sh * 0.5f - 145.0f,
-			400.0f, panel_h,
+			sw * 0.5f - 220.0f, sh * 0.5f - 155.0f,
+			440.0f, panel_h,
 			{ 0.0f, 0.0f, 0.15f, 0.88f });
-		// ステータステキスト
-		if (g_pStatusText) {
-			g_pStatusText->Clear();
-			char sbuf[768];
-			int pos = 0;
+		// ステータステキスト（TextTextureで日本語対応）
+		{
+			int fsize = 18;
+			float lineH = 24.0f;
+			float textX = sw * 0.5f - 185.0f;
+			float textY = sh * 0.5f - 135.0f;
+			char buf[256];
+			int tid;
+			XMFLOAT4 white = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-			// 現在の戦闘キャラのステータス
-			pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
-				"-- Fighter: %s --\nLv  : %d\nHP  : %d/%d\nATK : %d\nDEF : %d",
-				Party_GetFighterName(),
-				Party_GetFighterLevel(),
-				Party_GetFighterHp(), Party_GetFighterHpMax(),
-				Party_GetFighterAtk(),
-				Party_GetFighterDef());
+			// 戦闘キャラ名（日本語）
+			snprintf(buf, sizeof(buf), "-- %s --", Party_GetFighterName());
+			tid = TextTexture_Create(buf, fsize);
+			if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+			textY += lineH;
+
+			snprintf(buf, sizeof(buf), "Lv  : %d", Party_GetFighterLevel());
+			tid = TextTexture_Create(buf, fsize);
+			if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+			textY += lineH;
+
+			snprintf(buf, sizeof(buf), "HP  : %d/%d", Party_GetFighterHp(), Party_GetFighterHpMax());
+			tid = TextTexture_Create(buf, fsize);
+			if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+			textY += lineH;
+
+			snprintf(buf, sizeof(buf), "ATK : %d", Party_GetFighterAtk());
+			tid = TextTexture_Create(buf, fsize);
+			if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+			textY += lineH;
+
+			snprintf(buf, sizeof(buf), "DEF : %d", Party_GetFighterDef());
+			tid = TextTexture_Create(buf, fsize);
+			if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+			textY += lineH;
 
 			// EXP表示
 			if (activeFighter >= 0) {
 				const PartyMonster* pm = Party_Get(activeFighter);
 				if (pm) {
-					pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
-						"\nEXP : %d/%d", pm->exp, pm->exp_next);
+					snprintf(buf, sizeof(buf), "EXP : %d/%d", pm->exp, pm->exp_next);
+					tid = TextTexture_Create(buf, fsize);
+					if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+					textY += lineH;
 				}
 			} else {
-				pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
-					"\nEXP : %d/%d", Player_GetExp(), Player_GetExpNext());
+				snprintf(buf, sizeof(buf), "EXP : %d/%d", Player_GetExp(), Player_GetExpNext());
+				tid = TextTexture_Create(buf, fsize);
+				if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+				textY += lineH;
 			}
 
-			// プレイヤーが戦闘キャラでない場合、プレイヤー簡易表示
+			// プレイヤーが戦闘キャラでない場合
 			if (activeFighter >= 0) {
-				pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
-					"\n-- Player --\nLv%d HP:%d/%d ATK:%d DEF:%d",
+				snprintf(buf, sizeof(buf), "-- プレイヤー --");
+				tid = TextTexture_Create(buf, fsize);
+				if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+				textY += lineH;
+
+				snprintf(buf, sizeof(buf), "Lv%d HP:%d/%d ATK:%d DEF:%d",
 					Player_GetLevel(), Player_GetHp(), Player_GetHpMax(),
 					Player_GetAtk(), Player_GetDef());
+				tid = TextTexture_Create(buf, fsize);
+				if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+				textY += lineH;
 			}
 
-			// パーティ一覧（詳細ステータス付き）
+			// パーティ一覧
 			if (party_count > 0) {
-				pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
-					"\n-- Party (%d/%d) --", party_count, Party_GetMax());
+				snprintf(buf, sizeof(buf), "-- パーティ (%d/%d) --", party_count, Party_GetMax());
+				tid = TextTexture_Create(buf, fsize);
+				if (tid >= 0) Sprite_Draw(tid, textX, textY, white);
+				textY += lineH;
+
 				for (int i = 0; i < party_count; i++) {
 					const PartyMonster* pm = Party_Get(i);
 					if (pm) {
-						const char* mark = (i == activeFighter) ? ">" : " ";
-						pos += snprintf(sbuf + pos, sizeof(sbuf) - pos,
-							"\n%s%-6s Lv%d HP%d/%d",
+						// カーソル選択中は黄色ハイライト
+						bool isCursorOn = (i == g_StatusCursor);
+						XMFLOAT4 textColor = isCursorOn ? XMFLOAT4{ 1.0f, 1.0f, 0.3f, 1.0f } : white;
+
+						const char* mark = isCursorOn ? ">" : (i == activeFighter) ? "*" : " ";
+						snprintf(buf, sizeof(buf), "%s%s Lv%d HP%d/%d",
 							mark, Party_GetKindName(pm->kind), pm->level,
 							pm->hp, pm->hp_max);
+						tid = TextTexture_Create(buf, fsize);
+						if (tid >= 0) Sprite_Draw(tid, textX, textY, textColor);
+						textY += lineH;
 					}
 				}
 			}
 
-			pos += snprintf(sbuf + pos, sizeof(sbuf) - pos, "\n[M] Close");
-			g_pStatusText->SetText(sbuf, { 1.0f, 1.0f, 1.0f, 1.0f });
-			g_pStatusText->Draw();
+			// 削除確認ダイアログ
+			if (g_StatusConfirm && g_StatusCursor >= 0) {
+				const PartyMonster* selPm = Party_Get(g_StatusCursor);
+				if (selPm) {
+					textY += 4.0f;
+					XMFLOAT4 red = { 1.0f, 0.4f, 0.4f, 1.0f };
+					snprintf(buf, sizeof(buf), "%sを逃がしますか？", Party_GetKindName(selPm->kind));
+					tid = TextTexture_Create(buf, fsize);
+					if (tid >= 0) Sprite_Draw(tid, textX, textY, red);
+					textY += lineH;
+					snprintf(buf, sizeof(buf), "[Y] はい  [N] いいえ");
+					tid = TextTexture_Create(buf, fsize);
+					if (tid >= 0) Sprite_Draw(tid, textX, textY, red);
+					textY += lineH;
+				}
+			} else {
+				// 操作ガイド
+				textY += 4.0f;
+				XMFLOAT4 gray = { 0.7f, 0.7f, 0.7f, 1.0f };
+				snprintf(buf, sizeof(buf), "[↑↓] 選択 [X] 逃がす [M] とじる");
+				tid = TextTexture_Create(buf, fsize);
+				if (tid >= 0) Sprite_Draw(tid, textX, textY, gray);
+			}
 		}
 	}
 
@@ -722,8 +860,9 @@ void mapRendering()
 
 	// 深度有効
 	Direct3D_SetDepthEnable(true);
-	// ミニマップモードON（影の描画を無効化）
+	// ミニマップモードON（影の描画を無効化、天井スキップ）
 	CircleShadow_SetMinimapMode(true);
+	Map_SetMinimapMode(true);
 
 	Enemy_Draw();
 	Monster_Draw();
@@ -731,6 +870,7 @@ void mapRendering()
 	Map_Draw();
 
 	// ミニマップモードOFF（通常描画に戻す）
+	Map_SetMinimapMode(false);
 	CircleShadow_SetMinimapMode(false);
 }
 
